@@ -1,0 +1,707 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Whaur?</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&display=swap">
+<style>
+/* Layout: one screen. A satellite view of Scotland fills the stage edge to edge under a Saltire-blue
+   bar; a panel docks to the bottom (phone) or the right (desktop) with the prompt, the result and the story. */
+:root {
+  --bar: #0b57b8;        /* Saltire blue */
+  --on-bar: #ffffff;
+  --mark: #ffc83d;       /* gorse yellow: the target, the meter, the one bright mark */
+  --sea: #2a4975;        /* the sea at the edge of the satellite image */
+  --paper: #fbfdff;
+  --ink: #0b2140;
+  --ink-soft: #4a6285;
+  --rule: #d5e4f6;
+  --accent: #0b57b8;
+  --on-accent: #ffffff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --text: "Newsreader", "Iowan Old Style", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bar: #0a4a9e; --paper: #0c1a2c; --ink: #edf3fb; --ink-soft: #a1b6d2; --rule: #1f3657;
+    --accent: #6aadff; --on-accent: #06172c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bar: #0a4a9e; --paper: #0c1a2c; --ink: #edf3fb; --ink-soft: #a1b6d2; --rule: #1f3657;
+  --accent: #6aadff; --on-accent: #06172c; color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { margin: 0; background: var(--sea); color: var(--ink); font-family: var(--display); overflow: hidden; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.bar :focus-visible { outline-color: var(--on-bar); }
+
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Top bar */
+.bar { display: flex; align-items: center; gap: 12px; padding-block: 10px 8px; background: var(--bar); color: var(--on-bar); }
+.brand { font-size: 1.55rem; font-weight: 800; letter-spacing: -.035em; line-height: 1; margin: 0; }
+.brand b { color: var(--mark); font-weight: 800; }
+.brandbox { display: flex; flex-direction: column; gap: 3px; }
+.tag { margin: 0; font-family: var(--text); font-style: italic; font-size: .82rem; line-height: 1.1; opacity: .92; white-space: nowrap; }
+.mode { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.tally { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.15rem; white-space: nowrap; }
+.tally small { font-weight: 500; font-size: .8rem; opacity: .8; }
+.bar-btns { display: flex; gap: 8px; }
+.help-btn { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--on-bar); background: transparent; font-weight: 700; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.help-btn svg { width: 16px; height: 16px; }
+@media (max-width: 479px) { .mode { display: none; } }
+
+/* The meter is the 1,000 points drawn to scale: five segments sized 1:1:2:3:3, filled by what you scored. */
+.meter { display: flex; gap: 3px; padding-block: 0 10px; background: var(--bar); }
+.seg { height: 8px; background: color-mix(in srgb, var(--on-bar) 24%, transparent); min-width: 0; border-radius: 2px; overflow: hidden; }
+.seg i { display: block; height: 100%; width: 0; background: var(--mark); transition: width .6s ease; }
+.seg.now { background: color-mix(in srgb, var(--on-bar) 55%, transparent); }
+
+/* Map */
+.stage { position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; background: var(--sea); }
+.imagery { position: absolute; left: max(10px, env(safe-area-inset-left, 0px)); right: 62px; bottom: 6px; margin: 0; font-size: .62rem; line-height: 1.3; color: rgba(255, 255, 255, .82); text-shadow: 0 1px 2px rgba(0, 0, 0, .8); pointer-events: none; }
+.imagery a { color: inherit; pointer-events: auto; }
+.zoom { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button { width: 40px; height: 40px; border-radius: 6px; border: 0; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); background: var(--paper); font-size: 1.25rem; font-weight: 700; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.zoom svg { width: 18px; height: 18px; }
+
+/* Legend panel */
+.sheet { background: var(--paper); padding-block: 14px 16px; max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { margin: 0; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.place { margin: 0; font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 800; letter-spacing: -.03em; line-height: 1; text-wrap: balance; }
+.place.sm { font-size: 1.3rem; letter-spacing: -.02em; }
+.kind { margin: 0; font-family: var(--text); font-style: italic; font-size: 1.1rem; color: var(--ink-soft); }
+.story { margin: 0; font-family: var(--text); font-size: 1.08rem; line-height: 1.45; max-width: 60ch; }
+.btn { min-height: 50px; padding: 0 18px; border-radius: 6px; border: 2px solid var(--accent); color: var(--accent); background: transparent; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn:disabled { background: transparent; border: 2px dashed var(--rule); color: var(--ink-soft); cursor: default; font-weight: 600; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row .btn { flex: 1 1 150px; }
+
+.result { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.dist { font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.dist small, .pts small { font-size: .85rem; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); }
+.pts { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.where { margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.where span { font-family: var(--text); font-style: italic; color: var(--ink-soft); font-size: 1rem; }
+
+.total { display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.total strong { font-size: clamp(3rem, 14vw, 4.2rem); font-weight: 800; letter-spacing: -.04em; line-height: .9; }
+.total span { color: var(--ink-soft); font-weight: 600; }
+.verdict { margin: 0; font-family: var(--text); font-style: italic; font-size: 1.25rem; }
+.rounds { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.rounds li { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto 3.2em; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--rule); font-size: .95rem; }
+.rounds .num { color: var(--ink-soft); font-weight: 600; }
+.rounds .nm { font-weight: 600; overflow-wrap: anywhere; }
+.rounds .km { color: var(--ink-soft); font-size: .85rem; white-space: nowrap; }
+.rounds .sc { text-align: right; font-weight: 700; }
+.foot { margin: 0; font-size: .85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.copybox { width: 100%; min-height: 5.5em; font: .9rem/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 8px; border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); }
+
+/* How to play */
+.modal { position: fixed; inset: 0; z-index: 20; display: grid; align-items: end; justify-items: center; background: color-mix(in srgb, #0a161c 62%, transparent); }
+.card { width: 100%; max-width: 540px; max-height: 88%; overflow-y: auto; background: var(--paper); color: var(--ink); border-top: 5px solid var(--mark); padding-block: 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+.card h2 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.card p { margin: 0; font-family: var(--text); font-size: 1.05rem; line-height: 1.45; }
+.card table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: .95rem; }
+.card th, .card td { text-align: left; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.card th { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+.card td:last-child, .card th:last-child { text-align: right; }
+.card .credit { font-family: var(--display); font-size: .78rem; color: var(--ink-soft); line-height: 1.4; }
+
+/* Past scores */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.stats div { display: flex; flex-direction: column-reverse; gap: 2px; }
+.stats dt { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.stats dd { margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.days { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.days li { display: grid; grid-template-columns: 2.7em 6.3em minmax(0, 1fr) 2.8em; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: .95rem; }
+.days .dn { color: var(--ink-soft); font-weight: 600; }
+.days .dt { text-align: right; font-weight: 700; }
+.mini { display: flex; gap: 2px; }
+.mini span { height: 8px; background: var(--rule); border-radius: 2px; overflow: hidden; min-width: 0; }
+.mini i { display: block; height: 100%; background: var(--accent); }
+
+@media (min-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr) 400px; grid-template-rows: auto auto minmax(0, 1fr); }
+  .bar, .meter { grid-column: 1 / -1; }
+  .stage { grid-column: 1; grid-row: 3; }
+  .sheet { grid-column: 2; grid-row: 3; max-height: none; padding-block: 24px; gap: 14px; }
+  .modal { align-items: center; }
+  .card { padding-block: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .seg i { transition: none; } }
+</style>
+
+<div class="app">
+  <header class="bar gutter">
+    <div class="brandbox"><h1 class="brand">Whaur<b>?</b></h1><p class="tag">Scots for &ldquo;where?&rdquo;</p></div>
+    <span class="mode" id="mode"></span>
+    <span class="tally"><span id="tally">0</span> <small>/ 1000</small></span>
+    <div class="bar-btns">
+      <button class="help-btn" id="histBtn" type="button" aria-label="Your past scores"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1.5" y="8" width="3" height="6.5" rx=".5"/><rect x="6.5" y="1.5" width="3" height="13" rx=".5"/><rect x="11.5" y="5" width="3" height="9.5" rx=".5"/></svg></button>
+      <button class="help-btn" id="helpBtn" type="button" aria-label="How to play">?</button>
+    </div>
+  </header>
+  <div class="meter gutter" id="meter" role="img" aria-label="Points banked so far"></div>
+  <main class="stage" id="stage">
+    <canvas id="map" role="img" aria-label="Satellite map of Scotland. Tap to place your guess."></canvas>
+    <p class="imagery" id="imagery"><a href="https://cloudless.eox.at" target="_blank" rel="noopener">EOxCloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2025)</p>
+    <div class="zoom">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zfit" aria-label="Show all of Scotland"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M2 6V2h4M12 2h4v4M16 12v4h-4M6 16H2v-4"/></svg></button>
+    </div>
+  </main>
+  <section class="sheet gutter" id="sheet" aria-live="polite"></section>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="card gutter" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">How to play</h2>
+    <p>Five Scottish places a day. Tap the map where you think each one is, then lock it in. The closer your pin, the more of the round's 100 points you keep.</p>
+    <p>The places get harder as you go, and the later rounds count for more: rounds one and two count once, round three counts double, rounds four and five count triple. That makes a total out of 1,000.</p>
+    <table>
+      <thead><tr><th>Your pin is out by</th><th>Points</th></tr></thead>
+      <tbody id="curve"></tbody>
+    </table>
+    <p>Pinch, scroll or use the buttons to zoom, and drag to move the map. The zoom stops before you can make out roads. England and Ireland are greyed out, and Shetland is where it really is, not in a box.</p>
+    <p class="credit">Satellite image: EOxCloudless by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025), used under CC BY-NC-SA 4.0 and brightened, re-projected and partly greyed for this game. Coastline: contains National Statistics and OS data &copy; Crown copyright and database right, via the UK-GeoJSON project.</p>
+    <p>Each day you finish is kept under the chart button at the top, with your streak, best and average.</p>
+    <button class="btn primary" type="button" id="helpClose">Got it</button>
+  </div>
+</div>
+
+<div class="modal" id="hist" hidden>
+  <div class="card gutter" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <h2 id="histTitle">Your scores</h2>
+    <dl class="stats" id="histStats"></dl>
+    <ol class="days" id="histDays"></ol>
+    <p id="histEmpty" hidden>No finished days yet. Finish today's five and your score will be kept here.</p>
+    <p class="credit">Scores are saved in this browser, on this device. They do not follow you to another phone or browser, and clearing your browsing data removes them.</p>
+    <button class="btn primary" type="button" id="histClose">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+"use strict";
+
+// ───────────────────────── Data (filled in by build.js) ─────────────────────────
+const DATA = /*__DATA__*/null;
+const PLACES = /*__PLACES__*/null;
+
+// ───────────────────────── Game rules ─────────────────────────
+const WEIGHTS = [1, 1, 2, 3, 3];                       // rounds 4 and 5 count triple
+const WEIGHT_WORDS = ["counts once", "counts once", "counts double", "counts triple", "counts triple"];
+const ROUND_TIERS = [1, 1, 2, 3, 3];                   // easy, easy, medium, hard, hard
+const FIRST_DAY = Date.UTC(2026, 10, 9);               // puzzle #1 is 9 November 2026
+const BULLSEYE_KM = 3;                                 // anything this close scores 100
+const FALLOFF_KM = 70;                                 // how quickly points drop away with distance
+
+// Points (0-100) for a guess `km` away from a place whose own radius is `r` km.
+function scoreFor(km, r) {
+  const off = Math.max(0, km - (r || 0) - BULLSEYE_KM);
+  return Math.round(100 * Math.exp(-Math.pow(off / FALLOFF_KM, 1.25)));
+}
+function haversine(lat1, lon1, lat2, lon2) {
+  const t = Math.PI / 180;
+  const a = Math.sin((lat2 - lat1) * t / 2) ** 2 + Math.cos(lat1 * t) * Math.cos(lat2 * t) * Math.sin((lon2 - lon1) * t / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
+
+// ───────────────────────── Dates and the daily puzzle ─────────────────────────
+function london(d) {
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+  const o = {};
+  for (const p of f.formatToParts(d || new Date())) if (p.type !== "literal") o[p.type] = +p.value;
+  return o;
+}
+function todayNumber() { const p = london(); return Math.round((Date.UTC(p.year, p.month - 1, p.day) - FIRST_DAY) / 864e5); }
+function dateForNumber(n) { return new Date(FIRST_DAY + n * 864e5); }
+function fmtDate(n, long) {
+  return new Intl.DateTimeFormat("en-GB", long ? { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" }).format(dateForNumber(n));
+}
+
+// A small seeded random number generator, so everyone gets the same five places on the same day.
+function rng(seed) {
+  let a = seed >>> 0;
+  return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function shuffled(list, seed) {
+  const a = list.slice(), r = rng(seed);
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const TIERS = { 1: [], 2: [], 3: [] };
+PLACES.forEach((p, i) => TIERS[p.t].push(i));
+
+// Each tier is dealt out like a shuffled deck: no place repeats until the whole tier has been used.
+function pickDaily(n) {
+  n = Math.max(0, n);
+  const used = { 1: 0, 2: 0, 3: 0 }, perDay = { 1: 2, 2: 1, 3: 2 }, out = [];
+  for (const t of ROUND_TIERS) {
+    const pool = TIERS[t];
+    let idx = n * perDay[t] + used[t]++, pick;
+    do {
+      const deck = shuffled(pool, t * 7919 + Math.floor(idx / pool.length) * 104729 + 17);
+      pick = deck[idx % pool.length]; idx++;
+    } while (out.includes(pick));
+    out.push(pick);
+  }
+  return out;
+}
+function pickPractice() {
+  const out = [];
+  for (const t of ROUND_TIERS) { let p; do { p = TIERS[t][Math.floor(Math.random() * TIERS[t].length)]; } while (out.includes(p)); out.push(p); }
+  return out;
+}
+
+// ───────────────────────── Saved progress (this browser only) ─────────────────────────
+const KEY = "whaur.v1";
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+function save(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* private window: play on without saving */ } }
+
+// Every finished daily game is kept as { t: total, s: the five round scores }, filed under its puzzle number.
+function keepDay(n, results) {
+  const o = load(); o.history = o.history || {};
+  if (o.history[n]) return;                                  // a day's first finished score is the one that stands
+  const s = results.map(r => r.s);
+  o.history[n] = { t: s.reduce((sum, v, i) => sum + v * WEIGHTS[i], 0), s };
+  save(o);
+}
+function pastScores() {
+  const h = load().history || {};
+  const days = Object.keys(h).map(Number).filter(n => h[n] && Array.isArray(h[n].s)).sort((a, b) => b - a).map(n => ({ n, t: h[n].t, s: h[n].s }));
+  let d = todayNumber(), streak = 0;
+  if (!h[d]) d--;                                            // today not played yet does not break a streak
+  while (h[d]) { streak++; d--; }
+  const sum = days.reduce((a, x) => a + x.t, 0);
+  return { days, streak, played: days.length, best: days.reduce((a, x) => Math.max(a, x.t), 0), avg: days.length ? Math.round(sum / days.length) : 0 };
+}
+
+// ───────────────────────── Map projection ─────────────────────────
+// Transverse Mercator centred on Scotland. Map units come out in kilometres, with north up.
+const RAD = Math.PI / 180, EARTH = 6371, LON0 = -4.2 * RAD, LAT0 = 57.7 * RAD;
+function project(lon, lat) {
+  const l = lon * RAD - LON0, p = lat * RAD;
+  return [EARTH * Math.atanh(Math.cos(p) * Math.sin(l)), -EARTH * (Math.atan2(Math.tan(p), Math.cos(l)) - LAT0)];
+}
+function unproject(x, y) {
+  const X = x / EARTH, Y = -y / EARTH + LAT0;
+  return [(LON0 + Math.atan2(Math.sinh(X), Math.cos(Y))) / RAD, Math.asin(Math.sin(Y) / Math.cosh(X)) / RAD];
+}
+function decode(str) {
+  const out = []; let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    for (let which = 0; which < 2; which++) {
+      let b, shift = 0, res = 0;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (which === 0) lat += d; else lon += d;
+    }
+    out.push([lon / DATA.f, lat / DATA.f]);
+  }
+  return out;
+}
+const bounds = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+function buildPath(list, close, track) {
+  const path = new Path2D();
+  for (const s of list) {
+    const pts = decode(s);
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = project(pts[i][0], pts[i][1]);
+      if (i) path.lineTo(x, y); else path.moveTo(x, y);
+      if (track) { if (x < bounds.x0) bounds.x0 = x; if (x > bounds.x1) bounds.x1 = x; if (y < bounds.y0) bounds.y0 = y; if (y > bounds.y1) bounds.y1 = y; }
+    }
+    if (close) path.closePath();
+  }
+  return path;
+}
+const SHAPES = { land: buildPath(DATA.land, true, true) };
+
+// The satellite picture comes in three sizes: a tiny one built into the page so there is always a map,
+// then a medium and a full-detail one that load in the background. SAT says where the picture sits in km.
+const SAT = DATA.sat, PICS = { thumb: new Image(), medium: null, full: null };
+function loadPicture(name, file, then) {
+  const im = new Image();
+  im.onload = () => { PICS[name] = im; draw(); if (then) then(); };
+  im.src = file;
+}
+// Lines of latitude and longitude, kept as sampled points so they can be labelled at the screen edge.
+const GRAT = { lat: [], lon: [], path: new Path2D() };
+for (let lat = 54; lat <= 62; lat++) { const pts = []; for (let lon = -13; lon <= 4; lon += .25) pts.push(project(lon, lat)); GRAT.lat.push({ v: lat, pts }); }
+for (let lon = -12; lon <= 2; lon += 2) { const pts = []; for (let lat = 53; lat <= 62.5; lat += .25) pts.push(project(lon, lat)); GRAT.lon.push({ v: lon, pts }); }
+for (const g of GRAT.lat.concat(GRAT.lon)) g.pts.forEach((p, i) => i ? GRAT.path.lineTo(p[0], p[1]) : GRAT.path.moveTo(p[0], p[1]));
+
+// ───────────────────────── Canvas and camera ─────────────────────────
+const $ = id => document.getElementById(id);
+const stage = $("stage"), canvas = $("map"), ctx = canvas.getContext("2d"), sheet = $("sheet");
+const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+let W = 300, H = 300, dpr = 1;
+const view = { x: 0, y: 0, k: 1 };          // centre of the view in km, and pixels per km
+let home = { x: 0, y: 0, k: 1 }, minK = 1, maxK = 10, userMoved = false, creditH = 30;
+const MAX_ZOOM = 5.5;                      // most pixels per km: close enough to read a firth, not a road
+let C = {}, FONT = "sans-serif", FONT_TEXT = "serif";
+
+function readColours() {
+  const s = getComputedStyle(document.documentElement), v = n => s.getPropertyValue(n).trim();
+  // The map is always a dark satellite view, so what is drawn on it does not change with the theme.
+  C = { ready: true, mark: v("--mark") || "#ffc83d", light: "#ffffff", dark: "rgba(4, 16, 34, .8)" };
+  FONT = v("--display") || "sans-serif"; FONT_TEXT = v("--text") || "serif";
+}
+function clampView() {
+  view.k = Math.min(maxK, Math.max(minK, view.k));
+  view.x = Math.min(bounds.x1 + 30, Math.max(bounds.x0 - 30, view.x));
+  view.y = Math.min(bounds.y1 + 30, Math.max(bounds.y0 - 30, view.y));
+}
+function fitBox(x0, y0, x1, y1, pad) {
+  const k = Math.min((W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k };
+}
+function resize() {
+  W = Math.max(50, stage.clientWidth); H = Math.max(50, stage.clientHeight); dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  home = fitBox(bounds.x0, bounds.y0, bounds.x1, bounds.y1, 14);
+  minK = home.k * .8; maxK = Math.max(MAX_ZOOM, home.k * 2.5);
+  creditH = $("imagery").offsetHeight + 8;
+  if (cam && cam.home) cam.to = { ...home };
+  else if (!userMoved && !cam) Object.assign(view, home);
+  clampView(); draw();
+}
+const toScreen = p => [(p[0] - view.x) * view.k + W / 2, (p[1] - view.y) * view.k + H / 2];
+const toMap = (sx, sy) => [view.x + (sx - W / 2) / view.k, view.y + (sy - H / 2) / view.k];
+function zoomAt(sx, sy, factor) {
+  const m = toMap(sx, sy);
+  view.k = Math.min(maxK, Math.max(minK, view.k * factor));
+  view.x = m[0] - (sx - W / 2) / view.k; view.y = m[1] - (sy - H / 2) / view.k;
+  clampView(); userMoved = true; cam = null; draw();
+}
+
+// Animations: the camera gliding to a new view, and the line drawing itself from guess to answer.
+let cam = null, reveal = null, raf = 0;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function flyTo(target, ms, isHome) {
+  target = { x: target.x, y: target.y, k: Math.min(maxK, Math.max(minK, target.k)) };
+  if (still.matches || !ms) { Object.assign(view, target); cam = null; draw(); return; }
+  cam = { from: { ...view }, to: target, t0: performance.now(), ms, home: !!isHome }; kick();
+}
+function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+function frame(now) {
+  raf = 0;
+  if (cam) {
+    const t = Math.min(1, (now - cam.t0) / cam.ms), e = ease(t);
+    view.x = cam.from.x + (cam.to.x - cam.from.x) * e; view.y = cam.from.y + (cam.to.y - cam.from.y) * e;
+    view.k = cam.from.k * Math.pow(cam.to.k / cam.from.k, e);
+    if (t >= 1) cam = null;
+  }
+  if (reveal) {
+    const t = Math.min(1, Math.max(0, (now - reveal.t0 - reveal.delay) / reveal.ms));
+    G.anim = ease(t);
+    if (t >= 1) reveal = null;
+  }
+  draw();
+  if (cam || reveal) kick();
+}
+
+// ───────────────────────── Drawing ─────────────────────────
+function draw() {
+  if (!C.ready) return;
+  const k = view.k;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = SAT.sea; ctx.fillRect(0, 0, W, H);
+
+  ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (W / 2 - view.x * k), dpr * (H / 2 - view.y * k));
+  // Use the full-detail picture only once it would actually show; the medium one is smoother zoomed out.
+  const detail = k * dpr * SAT.kmPerPx;
+  const pic = (PICS.full && detail > .42) ? PICS.full : PICS.medium || (PICS.thumb.naturalWidth ? PICS.thumb : null);
+  if (pic) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(pic, SAT.x0, SAT.y0, SAT.w, SAT.h); }
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255, 255, 255, .12)"; ctx.lineWidth = 1 / k; ctx.stroke(GRAT.path);
+  // Coastline (and the border with England): a dark casing with a light line on top.
+  const thin = k < 1.2 ? .8 : 1;   // a finer line when the whole country is in view
+  ctx.strokeStyle = "rgba(4, 16, 34, .5)"; ctx.lineWidth = 2.4 * thin / k; ctx.stroke(SHAPES.land);
+  ctx.strokeStyle = "rgba(255, 255, 255, .88)"; ctx.lineWidth = thin / k; ctx.stroke(SHAPES.land);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawGraticuleLabels(); drawScaleBar(); drawMarkers();
+}
+// Where a sampled line crosses a fixed screen x (axis 0) or y (axis 1).
+function crossing(pts, axis, at) {
+  let prev = toScreen(pts[0]);
+  for (let i = 1; i < pts.length; i++) {
+    const cur = toScreen(pts[i]);
+    if ((prev[axis] - at) * (cur[axis] - at) <= 0 && prev[axis] !== cur[axis]) {
+      const t = (at - prev[axis]) / (cur[axis] - prev[axis]);
+      return prev[1 - axis] + (cur[1 - axis] - prev[1 - axis]) * t;
+    }
+    prev = cur;
+  }
+  return null;
+}
+function drawGraticuleLabels() {
+  ctx.font = "500 10px " + FONT; ctx.fillStyle = C.light; ctx.globalAlpha = .7; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  for (const g of GRAT.lat) { const y = crossing(g.pts, 0, 4); if (y !== null && y > 26 && y < H - creditH - 30) ctx.fillText(g.v + "°N", 5, y - 7); }
+  ctx.textAlign = "center";
+  for (const g of GRAT.lon) { const x = crossing(g.pts, 1, 4); if (x !== null && x > 40 && x < W - 30) ctx.fillText(g.v === 0 ? "0°" : g.v > 0 ? g.v + "°E" : -g.v + "°W", x + 14, 9); }
+  ctx.globalAlpha = 1;
+}
+function drawScaleBar() {
+  const km = [200, 100, 50, 20, 10, 5, 2, 1].find(v => v * view.k <= 110) || 1, len = km * view.k, x = 12, y = H - creditH - 6;
+  ctx.save(); ctx.shadowColor = "rgba(0, 0, 0, .7)"; ctx.shadowBlur = 3;
+  ctx.strokeStyle = C.light; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + len, y); ctx.lineTo(x + len, y - 5); ctx.stroke();
+  ctx.font = "600 11px " + FONT; ctx.fillStyle = C.light; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(km + " km", x + 5, y - 5); ctx.restore();
+}
+function haloText(text, x, y, font, align) {
+  ctx.font = font; ctx.textAlign = align || "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+  ctx.strokeStyle = C.dark; ctx.lineWidth = 4; ctx.strokeText(text, x, y);
+  ctx.fillStyle = C.light; ctx.fillText(text, x, y);
+}
+function drawPin(p) {
+  ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.fillStyle = C.light; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = C.dark; ctx.stroke();
+}
+function drawTarget(p, s) {
+  ctx.beginPath(); ctx.arc(p[0], p[1], 12 * s, 0, 7); ctx.fillStyle = "rgba(4, 16, 34, .45)"; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = C.mark; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p[0], p[1], 4.5 * s, 0, 7); ctx.fillStyle = C.mark; ctx.fill();
+}
+function drawMarkers() {
+  const all = G.phase === "done";
+  const which = all ? G.results.map((r, i) => i) : G.phase === "reveal" ? [G.results.length - 1] : [];
+  for (const i of which) {
+    const r = G.results[i], place = PLACES[G.ids[i]], t = all ? 1 : G.anim;
+    const a = toScreen(project(place.lon, place.lat)), g = toScreen(project(r.lon, r.lat));
+    ctx.beginPath(); ctx.moveTo(g[0], g[1]); ctx.lineTo(g[0] + (a[0] - g[0]) * t, g[1] + (a[1] - g[1]) * t);
+    ctx.lineWidth = 4.5; ctx.strokeStyle = "rgba(4, 16, 34, .55)"; ctx.stroke();
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = C.light; ctx.stroke(); ctx.setLineDash([]);
+    if (place.r && t >= 1) {   // the zone that counts as spot on, for lochs and islands
+      ctx.beginPath(); ctx.arc(a[0], a[1], (place.r + BULLSEYE_KM) * view.k, 0, 7);
+      ctx.setLineDash([2, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = C.mark; ctx.stroke(); ctx.setLineDash([]);
+    }
+    drawPin(g);
+    if (t > .98) {
+      drawTarget(a, 1);
+      if (all) haloText(String(i + 1), a[0] + 16, a[1] + 5, "700 13px " + FONT, "left");
+      else haloText(place.n, a[0], a[1] - 19, "700 14px " + FONT);
+    }
+  }
+  if (G.phase === "guess" && G.guess) drawPin(toScreen(project(G.guess.lon, G.guess.lat)));
+}
+
+// ───────────────────────── Touch, mouse and wheel ─────────────────────────
+const fingers = new Map();
+let tapStart = null, dragging = false, pinch = null;
+const local = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+canvas.addEventListener("pointerdown", e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  const p = local(e); fingers.set(e.pointerId, p);
+  if (fingers.size === 1) { tapStart = p; dragging = false; }
+  else { tapStart = null; dragging = true; pinch = null; }
+});
+canvas.addEventListener("pointermove", e => {
+  if (!fingers.has(e.pointerId)) return;
+  const p = local(e), prev = fingers.get(e.pointerId); fingers.set(e.pointerId, p);
+  if (fingers.size === 1) {
+    if (!dragging && tapStart && Math.hypot(p[0] - tapStart[0], p[1] - tapStart[1]) > 7) dragging = true;
+    if (dragging) { view.x -= (p[0] - prev[0]) / view.k; view.y -= (p[1] - prev[1]) / view.k; clampView(); userMoved = true; cam = null; draw(); }
+  } else if (fingers.size === 2) {
+    const [a, b] = [...fingers.values()], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinch) {
+      view.x -= (mid[0] - pinch.mid[0]) / view.k; view.y -= (mid[1] - pinch.mid[1]) / view.k;
+      zoomAt(mid[0], mid[1], dist / Math.max(1, pinch.dist));
+    }
+    pinch = { mid, dist };
+  }
+});
+function release(e) {
+  if (!fingers.has(e.pointerId)) return;
+  const p = local(e); fingers.delete(e.pointerId); pinch = null;
+  if (e.type === "pointerup" && !dragging && tapStart && fingers.size === 0) placeGuess(p[0], p[1]);
+  if (fingers.size === 0) { tapStart = null; dragging = false; }
+}
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+canvas.addEventListener("wheel", e => { e.preventDefault(); const p = local(e); zoomAt(p[0], p[1], Math.exp(-e.deltaY * (e.deltaMode ? .05 : .0018))); }, { passive: false });
+$("zin").addEventListener("click", () => zoomAt(W / 2, H / 2, 1.7));
+$("zout").addEventListener("click", () => zoomAt(W / 2, H / 2, 1 / 1.7));
+$("zfit").addEventListener("click", () => { userMoved = false; flyTo(home, 500, true); });
+
+// ───────────────────────── The game ─────────────────────────
+// G is everything about the game in progress.
+const G = { mode: "daily", n: 0, ids: [], results: [], guess: null, phase: "guess", anim: 1 };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const total = () => G.results.reduce((sum, r, i) => sum + r.s * WEIGHTS[i], 0);
+const fmtKm = km => km < 1 ? "under 1 km" : km < 10 ? km.toFixed(1) + " km" : Math.round(km) + " km";
+const fmtMiles = km => { const m = km * .621371; return m < 1 ? "under a mile" : (m < 10 ? m.toFixed(1) : Math.round(m)) + " miles"; };
+
+function startDaily() {
+  G.mode = "daily"; G.n = todayNumber(); G.ids = pickDaily(G.n); G.results = []; G.guess = null; G.phase = "guess";
+  const saved = load().daily;
+  if (saved && Array.isArray(saved.results) && saved.results.length >= 5) keepDay(saved.n, saved.results);   // picks up a day finished before score history existed
+  if (saved && saved.n === G.n && Array.isArray(saved.results) && saved.results.every((r, i) => i < 5 && PLACES[G.ids[i]].n === r.name)) {
+    G.results = saved.results; if (G.results.length >= 5) G.phase = "done";
+  }
+  userMoved = false; cam = null; render(); flyTo(home, 0, true);
+}
+function startPractice() {
+  G.mode = "practice"; G.ids = pickPractice(); G.results = []; G.guess = null; G.phase = "guess";
+  userMoved = false; render(); flyTo(home, 500, true);
+}
+function placeGuess(sx, sy) {
+  if (G.phase !== "guess") return;
+  const m = toMap(sx, sy), ll = unproject(m[0], m[1]);
+  G.guess = { lon: ll[0], lat: ll[1] }; draw();
+  const b = $("lock"); if (b) { b.disabled = false; b.textContent = "Lock in guess"; }
+}
+function lockGuess() {
+  if (G.phase !== "guess" || !G.guess) return;
+  const i = G.results.length, place = PLACES[G.ids[i]];
+  const km = haversine(G.guess.lat, G.guess.lon, place.lat, place.lon);
+  G.results.push({ name: place.n, lat: G.guess.lat, lon: G.guess.lon, km, s: scoreFor(km, place.r) });
+  G.guess = null; G.phase = "reveal"; G.anim = still.matches ? 1 : 0;
+  if (G.mode === "daily") { const o = load(); o.daily = { n: G.n, results: G.results }; save(o); }
+  render();
+  // Frame the guess and the answer together.
+  const a = project(place.lon, place.lat), g = project(G.results[i].lon, G.results[i].lat), half = Math.max(18, (place.r || 0) + 8);
+  const box = fitBox(Math.min(a[0], g[0]) - half, Math.min(a[1], g[1]) - half, Math.max(a[0], g[0]) + half, Math.max(a[1], g[1]) + half, 44);
+  box.k = Math.min(box.k, 4);
+  if (!still.matches) { reveal = { t0: performance.now(), delay: 450, ms: 600 }; }
+  flyTo(box, 700); kick();
+}
+function nextRound() {
+  if (G.phase !== "reveal") return;
+  if (G.results.length >= 5) return finish();
+  G.phase = "guess"; userMoved = false; render(); flyTo(home, 600, true);
+}
+function finish() {
+  G.phase = "done";
+  if (G.mode === "daily") keepDay(G.n, G.results);
+  userMoved = false; render(); flyTo(home, 700, true);
+}
+
+const EMOJI = s => s >= 97 ? "🎯" : s >= 90 ? "🔥" : s >= 80 ? "🏅" : s >= 65 ? "👍" : s >= 45 ? "😬" : "🥶";
+function shareText() {
+  const head = G.mode === "daily" ? "Whaur? #" + (G.n + 1) + " · " + fmtDate(G.n) : "Whaur? practice round";
+  return head + "\n" + G.results.map(r => r.s + EMOJI(r.s)).join(" ") + "\nFinal score: " + total();
+}
+function verdict(t) {
+  return t >= 950 ? "Pure dead brilliant." : t >= 850 ? "Braw. You ken your map." : t >= 700 ? "No bad at aw." : t >= 500 ? "Could be waur." : t >= 300 ? "A bit of a guddle." : "Haud on. Was the map upside doon?";
+}
+
+// ───────────────────────── What the panel shows ─────────────────────────
+function renderMeter() {
+  const cur = G.phase === "guess" ? G.results.length : -1;
+  $("meter").innerHTML = WEIGHTS.map((w, i) => '<div class="seg' + (i === cur ? " now" : "") + '" style="flex:' + w + '"><i style="width:' + (G.results[i] ? G.results[i].s : 0) + '%"></i></div>').join("");
+  $("tally").textContent = total();
+  $("mode").textContent = G.mode === "daily" ? "#" + (G.n + 1) : "Practice";
+}
+let timer = 0;
+function render() {
+  renderMeter(); clearInterval(timer);
+  let h = "";
+  if (G.phase === "guess") {
+    const i = G.results.length, p = PLACES[G.ids[i]];
+    h = '<p class="eyebrow">' + (G.mode === "practice" ? "Practice · " : "") + "Round " + (i + 1) + " of 5 · " + WEIGHT_WORDS[i] + "</p>" +
+        '<h2 class="place">' + esc(p.n) + "</h2>" +
+        '<p class="kind">' + esc(p.k) + "</p>" +
+        '<button class="btn primary" type="button" id="lock" data-act="lock" disabled>Tap the map to drop your pin</button>';
+  } else if (G.phase === "reveal") {
+    const i = G.results.length - 1, r = G.results[i], p = PLACES[G.ids[i]], w = WEIGHTS[i];
+    const spot = r.km <= (p.r || 0) + BULLSEYE_KM;
+    h = '<div class="result"><div class="dist">' + (spot ? "Spot on" : fmtKm(r.km) + " out") + (spot ? "" : " <small>" + fmtMiles(r.km) + "</small>") + "</div>" +
+        '<div class="pts">+' + r.s * w + (w > 1 ? " <small>" + r.s + " × " + w + "</small>" : "") + "</div></div>" +
+        '<h2 class="place sm where">' + esc(p.n) + " <span>" + esc(p.ca) + "</span></h2>" +
+        '<p class="story">' + esc(p.f) + "</p>" +
+        '<button class="btn primary" type="button" data-act="next">' + (i === 4 ? "See your score" : "Next place") + "</button>";
+  } else {
+    const t = total(), st = pastScores();
+    h = '<p class="eyebrow">' + (G.mode === "daily" ? "Whaur? #" + (G.n + 1) + " · " + fmtDate(G.n, true) : "Practice round") + "</p>" +
+        '<div class="total"><strong>' + t + "</strong><span>/ 1000</span></div>" +
+        '<p class="verdict">' + verdict(t) + "</p>" +
+        '<ol class="rounds">' + G.results.map((r, i) => '<li><span class="num">' + (i + 1) + '</span><span class="nm">' + esc(r.name) + '</span><span class="km">' + fmtKm(r.km) + '</span><span class="sc">' + r.s * WEIGHTS[i] + "</span></li>").join("") + "</ol>" +
+        '<div class="row"><button class="btn primary" type="button" data-act="share" id="share">Copy result</button>' +
+        '<button class="btn" type="button" data-act="practice">' + (G.mode === "daily" ? "Play a practice round" : "Another practice round") + "</button>" +
+        (G.mode === "practice" ? '<button class="btn" type="button" data-act="daily">Back to today\'s five</button>' : '<button class="btn" type="button" data-act="history">Past scores</button>') + "</div>" +
+        '<textarea class="copybox" id="copybox" readonly hidden aria-label="Your result, ready to copy"></textarea>' +
+        '<p class="foot">' + (G.mode === "daily" ? 'Next five in <span id="count"></span>' + (st.played ? " · Streak " + st.streak + " · Best " + st.best : "") : "Practice rounds are not saved.") + "</p>";
+  }
+  sheet.innerHTML = h; sheet.scrollTop = 0;
+  if (G.phase === "done" && G.mode === "daily") {
+    const tick = () => {
+      const el = $("count"); if (!el) return clearInterval(timer);
+      if (todayNumber() !== G.n) { el.textContent = "ready now"; return; }
+      const p = london(), left = 86400 - (p.hour * 3600 + p.minute * 60 + p.second), z = v => String(v).padStart(2, "0");
+      el.textContent = z(Math.floor(left / 3600)) + ":" + z(Math.floor(left / 60) % 60) + ":" + z(left % 60);
+    };
+    tick(); timer = setInterval(tick, 1000);
+  }
+  resize();
+}
+sheet.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "lock") lockGuess();
+  else if (act === "next") nextRound();
+  else if (act === "practice") startPractice();
+  else if (act === "daily") startDaily();
+  else if (act === "history") openHistory();
+  else if (act === "share") {
+    const text = shareText(), box = $("copybox");
+    const fallback = () => { box.hidden = false; box.value = text; box.focus(); box.select(); b.textContent = "Select and copy below"; };
+    try { navigator.clipboard.writeText(text).then(() => { b.textContent = "Copied"; setTimeout(() => { if (b.isConnected) b.textContent = "Copy result"; }, 2000); }, fallback); }
+    catch (err) { fallback(); }
+  }
+});
+
+// How to play
+$("curve").innerHTML = [BULLSEYE_KM, 10, 25, 50, 100, 200].map(km => "<tr><td>" + (km === BULLSEYE_KM ? km + " km or less" : km + " km") + "</td><td>" + scoreFor(km, 0) + "</td></tr>").join("");
+$("helpBtn").addEventListener("click", () => { $("help").hidden = false; $("helpClose").focus(); });
+$("helpClose").addEventListener("click", () => { $("help").hidden = true; $("helpBtn").focus(); });
+$("help").addEventListener("click", e => { if (e.target === $("help")) $("help").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { $("help").hidden = true; $("hist").hidden = true; } });
+
+// Past scores
+function openHistory() {
+  const p = pastScores();
+  const day = n => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(dateForNumber(n));
+  $("histStats").innerHTML = [["Played", p.played], ["Average", p.avg], ["Best", p.best], ["Streak", p.streak]].map(x => "<div><dt>" + x[0] + "</dt><dd>" + x[1] + "</dd></div>").join("");
+  // Each row repeats the score meter in miniature: five segments sized 1:1:2:3:3, filled by that round's score.
+  $("histDays").innerHTML = p.days.slice(0, 400).map(d => '<li><span class="dn">#' + (d.n + 1) + '</span><span>' + day(d.n) + '</span><span class="mini">' +
+    WEIGHTS.map((w, i) => '<span style="flex:' + w + '"><i style="width:' + Math.max(0, Math.min(100, +d.s[i] || 0)) + '%"></i></span>').join("") +
+    '</span><span class="dt">' + (+d.t || 0) + "</span></li>").join("");
+  $("histDays").hidden = !p.played; $("histEmpty").hidden = !!p.played;
+  $("hist").hidden = false; $("histClose").focus();
+}
+$("histBtn").addEventListener("click", openHistory);
+$("histClose").addEventListener("click", () => { $("hist").hidden = true; $("histBtn").focus(); });
+$("hist").addEventListener("click", e => { if (e.target === $("hist")) $("hist").hidden = true; });
+
+// ───────────────────────── Start ─────────────────────────
+function start(carried) {
+  readColours();
+  PICS.thumb.onload = draw; PICS.thumb.src = SAT.thumb;
+  loadPicture("medium", "sat-medium.webp", () => loadPicture("full", "sat-full.webp"));
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  const restyle = () => { readColours(); draw(); };
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
+  new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  startDaily();
+  // If the page was updated while a practice round was open, pick it up where it was.
+  if (carried && carried.mode === "practice" && Array.isArray(carried.ids) && carried.ids.every(i => PLACES[i])) {
+    Object.assign(G, { mode: "practice", ids: carried.ids, results: carried.results || [], guess: null });
+    G.phase = G.results.length >= 5 ? "done" : "guess"; render();
+  }
+}
+const hot = window.claude && window.claude.hot;
+if (hot && hot.snapshot) hot.snapshot(() => ({ mode: G.mode, ids: G.ids, results: G.results }));
+if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>

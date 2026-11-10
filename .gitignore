@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.jpg
+!docs/share.jpg
+!data/icons/share.jpg
+data/sat/check-medium.jpg

@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A daily map game for Scotland. Find five places on a satellite view and score out of 1,000.">
+<meta name="theme-color" content="#0b57b8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Whaur?">
+<meta name="mobile-web-app-capable" content="yes">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Whaur?">
+<meta property="og:description" content="A daily map game for Scotland. Find five places on a satellite view and score out of 1,000.">
+<meta property="og:url" content="https://emack2000.github.io/whaur/">
+<meta property="og:image" content="https://emack2000.github.io/whaur/share.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+html { height: 100%; box-sizing: border-box; background: #0b57b8; color-scheme: light;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px system-ui, sans-serif; overscroll-behavior: none; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Whaur?</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&display=swap">
+<style>
+/* Layout: one screen. A satellite view of Scotland fills the stage edge to edge under a Saltire-blue
+   bar; a panel docks to the bottom (phone) or the right (desktop) with the prompt, the result and the story. */
+:root {
+  --bar: #0b57b8;        /* Saltire blue */
+  --on-bar: #ffffff;
+  --mark: #ffc83d;       /* gorse yellow: the target, the meter, the one bright mark */
+  --sea: #2a4975;        /* the sea at the edge of the satellite image */
+  --paper: #fbfdff;
+  --ink: #0b2140;
+  --ink-soft: #4a6285;
+  --rule: #d5e4f6;
+  --accent: #0b57b8;
+  --on-accent: #ffffff;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --text: "Newsreader", "Iowan Old Style", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bar: #0a4a9e; --paper: #0c1a2c; --ink: #edf3fb; --ink-soft: #a1b6d2; --rule: #1f3657;
+    --accent: #6aadff; --on-accent: #06172c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bar: #0a4a9e; --paper: #0c1a2c; --ink: #edf3fb; --ink-soft: #a1b6d2; --rule: #1f3657;
+  --accent: #6aadff; --on-accent: #06172c; color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { margin: 0; background: var(--sea); color: var(--ink); font-family: var(--display); overflow: hidden; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.bar :focus-visible { outline-color: var(--on-bar); }
+
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Top bar */
+.bar { display: flex; align-items: center; gap: 12px; padding-block: 10px 8px; background: var(--bar); color: var(--on-bar); }
+.brand { font-size: 1.55rem; font-weight: 800; letter-spacing: -.035em; line-height: 1; margin: 0; }
+.brand b { color: var(--mark); font-weight: 800; }
+.brandbox { display: flex; flex-direction: column; gap: 3px; }
+.tag { margin: 0; font-family: var(--text); font-style: italic; font-size: .82rem; line-height: 1.1; opacity: .92; white-space: nowrap; }
+.mode { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.tally { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.15rem; white-space: nowrap; }
+.tally small { font-weight: 500; font-size: .8rem; opacity: .8; }
+.bar-btns { display: flex; gap: 8px; }
+.help-btn { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--on-bar); background: transparent; font-weight: 700; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.help-btn svg { width: 16px; height: 16px; }
+@media (max-width: 479px) { .mode { display: none; } }
+
+/* The meter is the 1,000 points drawn to scale: five segments sized 1:1:2:3:3, filled by what you scored. */
+.meter { display: flex; gap: 3px; padding-block: 0 10px; background: var(--bar); }
+.seg { height: 8px; background: color-mix(in srgb, var(--on-bar) 24%, transparent); min-width: 0; border-radius: 2px; overflow: hidden; }
+.seg i { display: block; height: 100%; width: 0; background: var(--mark); transition: width .6s ease; }
+.seg.now { background: color-mix(in srgb, var(--on-bar) 55%, transparent); }
+
+/* Map */
+.stage { position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; background: var(--sea); }
+.imagery { position: absolute; left: max(10px, env(safe-area-inset-left, 0px)); right: 62px; bottom: 6px; margin: 0; font-size: .62rem; line-height: 1.3; color: rgba(255, 255, 255, .82); text-shadow: 0 1px 2px rgba(0, 0, 0, .8); pointer-events: none; }
+.imagery a { color: inherit; pointer-events: auto; }
+.zoom { position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button { width: 40px; height: 40px; border-radius: 6px; border: 0; box-shadow: 0 1px 5px rgba(0, 0, 0, .45); background: var(--paper); font-size: 1.25rem; font-weight: 700; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.zoom svg { width: 18px; height: 18px; }
+
+/* Legend panel */
+.sheet { background: var(--paper); padding-block: 14px 16px; max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { margin: 0; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.place { margin: 0; font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 800; letter-spacing: -.03em; line-height: 1; text-wrap: balance; }
+.place.sm { font-size: 1.3rem; letter-spacing: -.02em; }
+.kind { margin: 0; font-family: var(--text); font-style: italic; font-size: 1.1rem; color: var(--ink-soft); }
+.story { margin: 0; font-family: var(--text); font-size: 1.08rem; line-height: 1.45; max-width: 60ch; }
+.btn { min-height: 50px; padding: 0 18px; border-radius: 6px; border: 2px solid var(--accent); color: var(--accent); background: transparent; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn:disabled { background: transparent; border: 2px dashed var(--rule); color: var(--ink-soft); cursor: default; font-weight: 600; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row .btn { flex: 1 1 150px; }
+
+.result { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.dist { font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.dist small, .pts small { font-size: .85rem; font-weight: 500; letter-spacing: 0; color: var(--ink-soft); }
+.pts { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.where { margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.where span { font-family: var(--text); font-style: italic; color: var(--ink-soft); font-size: 1rem; }
+
+.total { display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.total strong { font-size: clamp(3rem, 14vw, 4.2rem); font-weight: 800; letter-spacing: -.04em; line-height: .9; }
+.total span { color: var(--ink-soft); font-weight: 600; }
+.verdict { margin: 0; font-family: var(--text); font-style: italic; font-size: 1.25rem; }
+.rounds { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.rounds li { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto 3.2em; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--rule); font-size: .95rem; }
+.rounds .num { color: var(--ink-soft); font-weight: 600; }
+.rounds .nm { font-weight: 600; overflow-wrap: anywhere; }
+.rounds .km { color: var(--ink-soft); font-size: .85rem; white-space: nowrap; }
+.rounds .sc { text-align: right; font-weight: 700; }
+.foot { margin: 0; font-size: .85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.copybox { width: 100%; min-height: 5.5em; font: .9rem/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 8px; border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); }
+
+/* How to play */
+.modal { position: fixed; inset: 0; z-index: 20; display: grid; align-items: end; justify-items: center; background: color-mix(in srgb, #0a161c 62%, transparent); }
+.card { width: 100%; max-width: 540px; max-height: 88%; overflow-y: auto; background: var(--paper); color: var(--ink); border-top: 5px solid var(--mark); padding-block: 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+.card h2 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.card p { margin: 0; font-family: var(--text); font-size: 1.05rem; line-height: 1.45; }
+.card table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: .95rem; }
+.card th, .card td { text-align: left; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.card th { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+.card td:last-child, .card th:last-child { text-align: right; }
+.card .credit { font-family: var(--display); font-size: .78rem; color: var(--ink-soft); line-height: 1.4; }
+
+/* Past scores */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.stats div { display: flex; flex-direction: column-reverse; gap: 2px; }
+.stats dt { font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.stats dd { margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.days { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.days li { display: grid; grid-template-columns: 2.7em 6.3em minmax(0, 1fr) 2.8em; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: .95rem; }
+.days .dn { color: var(--ink-soft); font-weight: 600; }
+.days .dt { text-align: right; font-weight: 700; }
+.mini { display: flex; gap: 2px; }
+.mini span { height: 8px; background: var(--rule); border-radius: 2px; overflow: hidden; min-width: 0; }
+.mini i { display: block; height: 100%; background: var(--accent); }
+
+@media (min-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr) 400px; grid-template-rows: auto auto minmax(0, 1fr); }
+  .bar, .meter { grid-column: 1 / -1; }
+  .stage { grid-column: 1; grid-row: 3; }
+  .sheet { grid-column: 2; grid-row: 3; max-height: none; padding-block: 24px; gap: 14px; }
+  .modal { align-items: center; }
+  .card { padding-block: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .seg i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar gutter">
+    <div class="brandbox"><h1 class="brand">Whaur<b>?</b></h1><p class="tag">Scots for &ldquo;where?&rdquo;</p></div>
+    <span class="mode" id="mode"></span>
+    <span class="tally"><span id="tally">0</span> <small>/ 1000</small></span>
+    <div class="bar-btns">
+      <button class="help-btn" id="histBtn" type="button" aria-label="Your past scores"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1.5" y="8" width="3" height="6.5" rx=".5"/><rect x="6.5" y="1.5" width="3" height="13" rx=".5"/><rect x="11.5" y="5" width="3" height="9.5" rx=".5"/></svg></button>
+      <button class="help-btn" id="helpBtn" type="button" aria-label="How to play">?</button>
+    </div>
+  </header>
+  <div class="meter gutter" id="meter" role="img" aria-label="Points banked so far"></div>
+  <main class="stage" id="stage">
+    <canvas id="map" role="img" aria-label="Satellite map of Scotland. Tap to place your guess."></canvas>
+    <p class="imagery" id="imagery"><a href="https://cloudless.eox.at" target="_blank" rel="noopener">EOxCloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2025)</p>
+    <div class="zoom">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zfit" aria-label="Show all of Scotland"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M2 6V2h4M12 2h4v4M16 12v4h-4M6 16H2v-4"/></svg></button>
+    </div>
+  </main>
+  <section class="sheet gutter" id="sheet" aria-live="polite"></section>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="card gutter" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">How to play</h2>
+    <p>Five Scottish places a day. Tap the map where you think each one is, then lock it in. The closer your pin, the more of the round's 100 points you keep.</p>
+    <p>The places get harder as you go, and the later rounds count for more: rounds one and two count once, round three counts double, rounds four and five count triple. That makes a total out of 1,000.</p>
+    <table>
+      <thead><tr><th>Your pin is out by</th><th>Points</th></tr></thead>
+      <tbody id="curve"></tbody>
+    </table>
+    <p>Pinch, scroll or use the buttons to zoom, and drag to move the map. The zoom stops before you can make out roads. England and Ireland are greyed out, and Shetland is where it really is, not in a box.</p>
+    <p class="credit">Satellite image: EOxCloudless by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025), used under CC BY-NC-SA 4.0 and brightened, re-projected and partly greyed for this game. Coastline: contains National Statistics and OS data &copy; Crown copyright and database right, via the UK-GeoJSON project.</p>
+    <p>Each day you finish is kept under the chart button at the top, with your streak, best and average.</p>
+    <button class="btn primary" type="button" id="helpClose">Got it</button>
+  </div>
+</div>
+
+<div class="modal" id="hist" hidden>
+  <div class="card gutter" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+    <h2 id="histTitle">Your scores</h2>
+    <dl class="stats" id="histStats"></dl>
+    <ol class="days" id="histDays"></ol>
+    <p id="histEmpty" hidden>No finished days yet. Finish today's five and your score will be kept here.</p>
+    <p class="credit">Scores are saved in this browser, on this device. They do not follow you to another phone or browser, and clearing your browsing data removes them.</p>
+    <button class="btn primary" type="button" id="histClose">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+"use strict";
+
+// ───────────────────────── Data (filled in by build.js) ─────────────────────────
+const DATA = {"f":2000,"land":["yczE`|MCKOCCXVH?S","s`zEjrM^y@NK`@u@HQXiABk@Co@Se@Gu@?k@Cq@`@SBQ?o@CSOGU?EICc@DO`@u@PGJc@DA@iAGA@u@Vc@?o@Bk@FEHi@AUHULNDUHEC[MSHQVyBXQC_@HKMUOJ[KCv@K[Dk@Qc@FUBq@Sc@GWONGe@?]BUNA?OKUWIO[EWKKFYYQ?KIs@EeAJUJg@Ii@MBMc@Ao@DU@aBO?WW?IYISSW?IF[?c@OSSYk@@a@Oo@SSSg@IEO_@?m@_@a@Q[SMYu@OUAKF[Sc@Ke@MAIMEW[k@K?GO[e@CSKUMa@Im@Ck@?aAF{@BOFs@J]Xe@D?F_@PEJMI[@[JSFUMIMg@He@D_@ISY[E_@O[?UMe@?SGa@Qe@B[Im@IU@WESYUBUGi@SWYm@Kq@c@eAIAMe@Q@E[KS@[I[Q_@k@i@IN?TSNBt@Qb@Ol@MVQLOf@[VSDIjAOVCZBT?d@IJB^?t@M~@IHBp@Cn@IVOHK^C^ETeA^QTAJNNNBPJDd@Kd@GJC^ITF^IZ?^OFIY?k@DMMOA]FMOq@Os@i@a@ESSG{@Ek@Se@Ig@AMNGf@BN?ZF^?RJv@Ed@SRGTS^Av@BzAHTDXJZZNDLPl@@b@\\fALR?n@B\\FV@fADXXZFXPf@H~@JXJd@Fp@@`@XbAHp@Tt@RpA`@bAAJLn@X|AJpA?x@@X?VCx@@NNXI|@?eAOQQn@Ij@k@p@ITHHQ`@Et@IRE^IPTdA?h@DZE^OIYB[Cg@ROJEEv@c@DFRMLBXYDIAq@O_@C[@[FS@[Ls@Hw@Ri@\\g@R_A@YE}@G?Im@GOKm@?UIuAISGa@IUOIGKA_@IEq@yAGEQi@MGSc@KEW[Mc@IGKYEi@Uu@QKYq@?k@GS?[KEGWV]BU?gEIu@]kAMs@Cg@?{@G?CkA@s@T_AU}@AUWi@M{@Ak@GeAJk@^_BHg@HW?g@OUc@Ym@QYMIOI[AYIKYoAKUMKCKO_@UiAe@_@Yg@SUKY?a@Ge@MOA]IUGa@D[G_@KOESWHY_@Aa@QCCKS?UYMe@KBS_@IEU_@O?ISMGI@Id@@h@ON]F]Aw@YUw@QS?e@MU?SGKGa@M?Uk@OTWMKD@rAAVI^BNNR@Z@zAGXIDKZMCe@m@QI?[H{A?]XWL@JLDWJW?e@KOSKw@SgAe@]IAt@?a@IYMQMY[_@QYI_@Ag@Di@K?GQKMCQQU@IK_@Ie@GICa@S[CMOUg@e@OUYOGKAe@OKa@?ISAa@Q]UOIWS_@EOSIIQu@s@OHSIELMe@EDIMWEAWY?OJQCOKMBIPUQ?CIEKPKBIIUD[\\Q?IIUo@OQGWS?]UOEAOm@K?YOHQII_@KWUEMSCQ[c@KYS?GQICAQI?CUY@Kk@OIOFMC_@_@KQMCS_@CBA?K?A@EAI_@KCQQQOUECIA?OKA\\OLIOEc@Qb@?XHd@ELC~@OKFk@?SSNe@Jm@AYILZEl@GDBu@EUo@Sa@Qu@Yq@U[Uq@]cCgBwBkBKDINQO]b@]EOf@GEUBIOEc@In@ENGUB_@L[H?HTRJVKPCh@e@VXDOOUSOa@e@Go@GOELIO?COa@ICK_@MGGYOO?BOOG]K?IAE_@Q_@CCG]EIMUSUM]?K?CGGQPUBSIUYK]PY?E?C?CQUAA?@EG?CAIABEDIEQ[IUMJQ?Ke@UOEUKCSEMa@WYACSGGIM?IXKLG^KDOq@K?Qh@WIEa@FWAe@QFKLWbA@TUPIEGRUJa@?UQYPQIQb@g@d@_@NYDo@?k@[OFINMh@Ij@Q~@Yp@[b@s@p@M?Qd@SPKV[FKd@?LK`@Tn@Av@IbAMj@OTOKKFIHMAHp@ETPt@B`@M~@IHItAHdA@p@KNF^JJ?NJTLJHb@LHCl@LFXf@?XFJ@b@Sz@KNF^QpAAd@BTHJKr@KCOp@ARSDCTLr@@ZLT?JLHRIJLBPN^Fh@W`@Bj@Pd@F`AEn@IN@ZAn@D^EHJZEDEb@D^CPAHGPFh@CXJJ@NTd@I`@SNHbACJAd@Qt@Q@K^JHFXA^OT@`@HTIXDjAO^KH?d@Md@BNNPBRGf@?~@WZV~@HJFZC^W?IF?@?BBD?HC?CVAB@z@I^QPANR\\GTPpAMv@IRY?CHBz@D?@|@Jt@Cb@LJCL@l@Tb@JCHNJ~@HNHd@A^HT@VHRD`@LNHTBd@DR?`@Cl@Ir@QrBK`ALS?r@SP?XMpA_@tCUpACXg@|CSv@W~@HBBOPGUn@OLYIEj@JZDXAn@Mz@A^Dz@BNHjA@`@L^@h@Hd@GZP`@?\\B^Vz@?`ABZG~@HBHe@V?b@LRLNNNZLZLz@Fh@BnA?z@Cz@E`BDZLe@N[NSAUPa@^ON?N^?NKJ?b@GTBf@IHLT[JA^IBA[@_@K?_@[QTK`@Ah@@`@PrD@]Nd@LMLXRv@@N\\nAFHFj@E`@L\\D^Dz@BVX~@RJSm@MOM_AHKHVPXDRLG@h@LP`@hACXHj@Lf@D?D|@?d@JrBAxAU`C]zARe@?IRe@HHQP]`BGh@JZRKFlAA^@x@JJPx@F]EGHs@^o@RMZJ\\j@T~@^lBVb@f@`@NTD_@HN@t@IbATT\\MPHTh@RZPj@BZ?\\OCCROf@Mt@Nh@@TKd@PTf@|CIt@?RJZOZAR@j@Hz@Cd@HHBVEr@SJITIBGTKJGn@PXH`@DLXF?XEd@POJ^C`@KE@QHSGKK^KM?QD[EYQEIMOa@YYEWUeAGe@AoAFa@Ri@@o@AQBe@F_@E{@CM@WA{@Hi@@i@DU?g@]OQU_@y@OUs@o@MXG@Bf@?`@St@FdAQJGe@@gADc@AIFk@?QHe@ES[a@[DOKq@aCE_@@eAB[Li@MD]h@UJMAIWi@Qc@q@M]IEOg@IMYQWi@OKSc@Oa@SYEe@[o@_@a@QJ?d@Bt@C^OT?LPFJXDt@Rj@Hb@Ld@BfAJh@Bf@?z@ALF`@E^MP]MUDBz@?ZD^@p@EXNx@@TNp@JTPh@JNL^FVLXXdA`@pANTJHh@z@FTZ^NXb@bAHh@HT^h@Jz@USOBCS[e@S^OHOKSc@IWMYMc@MWIYC[OCMUOe@S[WSWq@De@Ie@ISIHKQ]JOKSi@Ee@RoAMQ?OKe@IBC]GKEc@BKGq@BeAHe@LO@OOu@OUK[o@yAOe@YWW_AISUw@Hy@Am@I@Ma@Ee@?m@HGK]V?HEPLHd@VVPE@Jt@^NA?k@FMAe@EOHq@@_@Ea@KUq@}@k@}@_@e@UI[_@WQYCKSQk@WUGUIIKg@KYi@q@GSSQSMM_@_AgAEOMEW_@EOKIO]_As@MDYKIN?XFJA^HP@TJXLELPXLTZNCDHBh@H^V\\JhAAn@D`@Ex@Hd@H?Dn@Ir@IM?u@Wc@?UQUKTBTERBJ]t@O`A?b@h@rBNl@d@rAZjAQx@IJ[t@Eb@Gt@SPJd@Oj@Qb@RE?OJOBSNBBf@A|@Q\\Al@OJWDKHIT[XRJOPWBCH?j@JXAZBT?x@Hv@Rp@B\\Y`@Jj@HHEXODMEIHDp@k@`CMD?TYXQOA_@KE]XKN?f@ENJTi@hAq@NEDSj@IHOEW\\Gl@Kj@Yd@It@F|@Ir@Hj@CX?ZI`AQR?VGh@K^Id@EKVu@DcAPUH{@?_AAaABO?a@Ci@FK@c@R[Je@HaAZY@IPFBYHSn@UHOLu@EKNy@h@q@d@UXk@Ns@Da@FYPUZe@@{@AUMNQI?qAE{@MMFs@AILkABEFe@Co@HITB@sAI]MCQc@RKTH@ZNTE{@FQCYDUVO[S[m@SkAAe@?{BPy@LQCYM?i@XM?OUSFM?K[SEQ_@?O]Nk@RS?QPAj@D\\FF?^Uj@Ix@A`@QN]h@KCQm@FS@[b@o@GSAk@Me@Fe@HBL^N@FLJWGUDUIWe@IQSYG]OSSO_@CW?]Iq@Se@G{@Ak@GOGiAEKWSWu@Ie@Gq@UOEIU?i@Ke@QMYIi@i@g@[cA?OIUA[Ha@QUAu@g@i@EUIOBSQu@MQMa@Uo@IMGWW]QWCOCu@Ok@KCMe@IAOYIs@M]S_AEU[e@I[A?OS]uA?KWaAYYIUOEIUQOI_@]MCGSIMYIBS[I]OOIUQOKASUKGEU@QO[MGOa@G?a@u@Yq@I]Ca@GSKcBONG{@?e@CCAe@OOCYOk@C_@?IEWHO?OIUCYAYMm@Oo@WUCSKAOUe@i@CQSe@]i@Wk@MIAe@Qc@]g@K[IDEO[CSUQ?GLMSIUQUMJKESYMHMIOg@MOOHMf@?JQ??qAK?Ia@SOWNCHq@c@YD@dALr@BZCv@DFWfAQNm@XWDo@Cg@KOMOU@OM]ICg@oAA?OUEDa@e@IUIGSDOISUOZUTKGKeA?]SQIDIQSIMPMGi@@OEKSIA?UKIKB?PINHZMTAXHJD\\ClAEj@@h@HNBXAt@JTHlACd@IRUNQ@Kb@OJEZLH@L?zAJ@FNA^B^MDE^FND`@GT@b@NVLl@?`@HZKNIZBHAx@DVGHUBIP]HSZIj@Jx@Nn@V`@z@TTGF_@L_@Nq@?WFONEF_@Bw@LIN?d@^^~@C`@ILQ`AD`@Cd@Eb@BNKTIMIH?d@FXGHGZDf@D\\?d@LZBX^p@?n@KPA\\I`@KRS@Mk@EIO?KIAt@BNJjBDREPHn@ARHbBAj@EVKJ?`@Jd@HH\\DER?PNn@?TLT?LL\\FXL^F?\\z@LN?TNt@HXHDPIDXB^GP[BGXXvAEp@B^HJ@d@BHBRGV?d@E^EH?THb@HNNGAt@MNQ?INGb@DVHBCZKAIZHXJVER@j@FZDHDh@i@FOHi@DQNUB\\^?DDVCd@HHTAHZHKFFRGF\\JFFj@BHB@TETNA^UJCNFTMBIVHh@QBQPFJBb@HNIv@F?FH?NP?^JHH@H?H?D@CDB@VELN@Qb@?@A^?LWTDFCXFNd@KDVAHTa@FPE^G`@?\\FDx@_AI^?XQEDd@Cz@PICZMRMk@ODS`@Ij@?d@I\\?VFh@DHGd@FVETHX?NHZl@t@THFTPRH?FVCXJTLJd@~@Dd@LUXEDDDXJV\\\\LDLd@VHPZPN@XGJS@Ie@KKe@?MOM?QKISYKINMBGYYIEa@SUC_@KCYk@EOMJ@\\KPERIDQY_@JM?IM?\\QHGZN?@^JBATSO]X@NKZDTYdAQJEHCh@IVF^Gd@?ZINLHBd@Gb@L\\Qb@JPARJDP`@VQd@d@NSXUd@ABZXNHTLJKR?ZJd@ARRf@THJZd@HHATDVCHJGb@Vd@Bp@FAXTLp@FHAZFHTD`@d@CzAG?G[MDKEEOMI]e@O[SICKQIKOOCYa@Su@QBOc@KIIUIAUi@CWW_@SCMJIAKXOYC`@FHEXHJIXKDAz@EXITM?MOKd@Ch@HZ?NQVKFQSKR@\\WRBTMNEEW@GROE?PNTBXP??YPOVa@TCHLCj@?n@PVLLN@HNXe@L[@c@FKL?d@X?NRFLXNLN`@EPMGAVHHATQOWg@Oi@KYSEKRSv@[^WAMJSKMD_@OYn@MCGd@D`@M\\IFOh@EXQNANHZGzABTIh@Cd@R\\Fr@MHIv@GXMTEZMRCVDNPDP\\REPS@NXDBOLHLKF@Bb@LDFSPTF]Rp@HCFRVCHXRPP?DRZ^N^H\\Ih@BNAZJAT^BTTJFTNNTJLKRDHNJIJTJ?BULFPWJAQ_@BOL?Ai@@MJMHHNEJ{@FC?o@BOJBCd@JP?\\D?@{@He@AeABM?{@HGNLDGB]DKFw@Rd@JMN_@TLe@t@[`@a@~@GZCh@Hd@OZFPCVHJ\\nAJ@JJA\\T?FV@?LEFa@Cy@LA@]HK?jAFZ?\\JCHe@EINUA[?_ACQI?MS?u@LBHj@JNBPJAMq@\\V@[FEAi@L_@Tb@Le@Ti@@j@RLCVQF@WKUQh@HP@XKB@TO@@l@QNAJLn@SSKp@C^BXWJ?TOFKNIV\\t@ZHLSHFH]PFPf@`@d@FNJ?TZDg@H@Rk@DXOv@H\\NMFWRWNL@_@HKHVLLTDHYBk@[_@?[LOH?NXBTNDFu@DDDXH@LTHw@NXJCKa@BSHBHUPGJL@YIULI?YJBPi@HGTc@Dg@AMJOEKBk@Ce@Te@Oc@Ih@ESAmATaAEMHa@CED_@Ae@I_AD{@JSHhBETD`@EdANn@POHYB_@Je@d@qAJLNo@HERVYXQZBNGj@?\\I@Sb@KJIn@Q?CHQCQJGh@?P\\d@F\\Qj@FNN@WnAWt@I`@M\\WJBXH@Cj@LHBRH?@c@FK^BG`@KUG^I@Cb@FNRPQh@RV@LPHFSTNFUHNINY@IRM@D\\?^L\\Oh@MBIJRj@GJBXLBG`@LN?b@NTEPRTP~@NHJ`@HBQd@SDCNO?GTB^Ed@UEI@?B?f@IXFb@MJS@ALO?Pd@HDFD@XLNJIPDVXFIJg@@SLYJGHYHCHa@T?JIHDRGD_AJMPRJ?@[PFBa@JDAu@NW?SVCDl@DYXEKi@BUKI?a@JBAPH^@^VTFe@JSKw@NC?QDU?WE[GAIs@@KR?Dj@LEFJAd@RKGd@JJGh@IXLd@J_@JOJ?L_@EO@e@NCAt@Db@EHFj@PCHq@PKHS?_@LI\\b@LCBRN@LXVUNEEj@RZN??d@OAC`@FTELULERAz@JNXNVONB?NIJGIQDKR[JBTINSHGCGl@KFGTOFEVQZ?XKDAr@JJZCARb@j@NH@SHOHL@^PUd@YLY@q@PSAQRO@PHBHOFJCRVDNUAa@FI?_@Ji@@_@Ie@He@b@q@FDNOX^DEAy@GQDOVODORIFWNYL?DTHBJ]A]Ds@DO?k@De@J{@NKDDLOBq@JO?_@D_@Ei@BUTEZH?YIOIDMUBKTPJMJVJLH\\XTEXDRAVLXDQJM?URk@JEHOJs@Xa@^[Oi@Lg@V]PALS?g@No@Vi@\\OFQJEX_@HFNQb@U\\[XTRIAD?Di@h@UZg@d@y@h@a@`@IBY`@AZ@x@KNe@nA?\\IBCZY\\Kf@QXQPIX@NQn@GDB^Cf@Hx@D@Fb@Bv@Ar@@TK`@Gb@KHATIP]d@OOIDKV?f@BNROHH?PIHFb@Kf@FZNFXo@^@D]HIEYHgA?y@F[LOTk@d@i@PDJGJYHk@Fy@?QLeBH[LIVDHOHe@Ne@DIN?@NIj@Ch@Mh@CZIBETE`A?d@Qj@StAU^QJQBANQPENm@dCGZU`@AbAIVRd@RHJADPT?JQN@?THLRINV?^PHJQb@?DNCp@QNCJBXATI@ERAd@@TMZEbAK`@UESd@MJQEKJYQIDAXIHg@Y?XICKRBTHJCj@GZKHOj@?r@DPZTJd@XXH?HRVIBJTZL]JMBj@NBHOLIDQNHNc@BJN?FKEUHIA_@L]Be@LWRF@m@FQLKFDPIFDf@HJCPN^d@JO?u@JBJKHDDT?d@Fh@YWKR?PJRDTNJF]NGT[Je@RJFNE^D^GRW`@SRYj@IVKHc@n@KOSBIGELMCKUKBQPUBHPA\\QPWOIBBVAROEMJEQW@[[IPARGv@Dn@GBEVRRD`@Od@Ah@@TLHNh@HFAb@@ZEHEZF^\\DJKR?JIHJTHb@ELDNCLMf@Mf@UJDZAJJVDDHXHLUh@`@HCNUB[BgANe@R_@LMCm@Fc@?_A@GEc@B[AYBOb@e@V?HXHOC[NIVa@DJE^DNL@N[Dn@YJF\\KFGRAd@HTAXQYKH?PIXDj@?h@Rj@NE@Z?t@P?JHLSL?NRNVJBd@j@PDPKLJB\\d@@HQOy@Lk@TeAVq@R]HAJYHEXi@d@LJEJSHBJMHWFe@HW@kAPQVCDTONDTIV\\DFMG_@LEBUJDBOBg@LYLBA]IKI_@Fq@UEHi@EOHWMi@AaAHM?[Bu@?_@CWDcAFG@u@FDJOPCRRFML^CX@n@KJGT@XHZGZIBBTLIGn@HBD^ELOXHT^ZRHGX?XM@IQM@S\\D`@OCKH?XJHZSPHFSNL\\]J?CXIJGb@KDKZODARD^QVG\\SCSDAG]DU`@?RPNDSNKVMWt@E\\@^NZ]^GIIJI^IIEXHTWDCj@KHOEGTDTATWTCLST@PJTFUHLC|@NRNBLWRBFNKZFHLCFOLBBTJHLEf@Fb@Eh@b@XDBHVNJIV?HJRIRAPPRAD_@HD\\ORBRE\\]Be@?WCo@Gc@Rk@FBL`@XTXNb@?AQDMNE@QZMBNGN?RRFNGRFBNNHZUBH^SNAE]KAQNG_@DITBXIDULCVe@@e@E[@OGY?e@Ik@GOA[Qa@SSEY_@aAQQ?YGEAYIYSa@?SGOA]Ye@C]YEIY[QISTGXZN?H[JI?URKHD?TPZ@h@HP@d@PTLKXKA]Bg@As@FODRAPJLLU@SEa@Ii@DmAS_AUk@OMKUIEGYMAIc@[KUi@Q{@UQMEQS?IS_@Ea@DUZYHNLH@JTXXHJCNNBTPTZz@D^\\d@HDDTHH?RLPPj@Bl@Cj@EPB~@Nd@RCDb@ATVjACJ?t@FHBb@GL[[E?@~@LEFNC^DTI`@N?@UVTNOF[D`@Eh@Bh@TCFTD`@b@b@F_@JHNd@D@HQPOPJ?^JKFc@AU?eAIQDYBq@Ek@M]G[La@Fy@H?PQGi@IQ@c@DET?M_AHOOa@KIFQBc@U{@FEGu@_@_@GQA_@[i@UDSUGOKq@Ac@@]EWIEAQJMR^ALFTBj@Ad@HN?^HFPGJ@V^FTTd@DRHD\\K@Md@e@B[Ro@JUPO^q@BSHKBYAUJu@@a@FMI[?_@DELRV`AN?B^HCHNCRQ`@QJ_@rACZ]n@I@c@x@KZMDMRMHUZBHIVFRATTd@Hd@Fh@HV?ZBVKJ@TJJNz@BdAb@t@VX\\BHYAe@BSPKNYNGPf@ZLLTF\\Td@Tx@LTRHHZRHDSPRHKH@L_@HBHONy@Ja@Gi@Cu@?e@EOBa@HO?[JS?[HURKG_@@c@HEV?BUHDTUNHNYFg@FGH[@q@M{@CUP]MWCo@Ek@M]C]BOEOMo@F[Ne@C_@Lo@DHIf@BLIl@@f@JJDj@C^L~@Dz@AVFHJnA?ZRNVBFTINC\\INGn@]d@NRCJ]ZSLEVe@^@XCT?ZMdBMTANBn@JTBXHTBd@G`@DTBzAL?RNNBLNDG`@r@DN?ZFZTd@@LPNPVHTV?ERNNRIRS@KN?A[H?@_@U_@RIBQX@HMDFHWLCGaAQNIc@Ck@GQBoAHc@Vq@JAH\\@TRFh@Yz@_ADIBq@AOJe@HA?_@R]MaAOQKs@@k@IUAa@O]D[GEGe@DOS[LMLLDe@HMDtABNLjAHZCLVdABf@GDEh@D^JJLXBt@NDOTKt@FXMv@_@t@BTOh@IPUNSDUXSDSN?THhA?`@Bn@ETFRFd@GJDh@EJHn@LFHAE`@XLNGRB?XFNf@?\\N@_AGEBUJFHKJNMd@B^HCHLHCNXLERPFINARt@H@XE?JJRFXAJTBJc@NK@o@IUHO?OLEFPTHFZHRSDAd@@RQFGRBXJLPEJb@?VFr@RE@OR?BMMUBKNEHOEUN_@USHKMOAYKQJUC_AS_@G[L[WkAA]Be@K[?w@@_@IeAHIDUJT@TA{@PICTDNBbAHDHj@LHPt@LPTTBa@CKJWAa@Pa@EWFMGWD]JSA_@m@IQ[EUQK[s@FOCWJ?RSLr@CTDPLDH\\XDPTFEHJHZ@x@In@KVBRAZPB?`@L?Dd@Hr@Et@HPPBKl@BXCH?lALH?LR?^PXCVcB?YHe@Pe@@[Fc@@[Nq@Bi@J[BYLO@NE^E`AIh@QJDXP@BXGj@?TH?XVZFENM?MTBxAIJCXID?`@ENRNBLT@No@NNFQASV{@K_@HOJLL??_@VDTCER@NEj@DRKZSUSE[j@EPVRCNPJNb@IVa@RSl@CR]`@]l@I\\FNJ?@NLEDRR^?v@CRBPKZ\\REv@H?Ah@I`@FHPACVF\\Cd@MVBd@?B@NKP?t@CRHn@DF?r@HJ@XH?JTB`@IR@v@RDB]FFHK\\HDVMn@FZHLLOPXGJ?d@LCDQLN@CJLPGZ]JI^y@Bk@LCHg@C[Dc@EONk@@OGa@KIa@_A?YRa@HYGKAYIKD[Eu@@e@Le@NIH[JMI}@@SC[Fi@MUFKNHT]BUCK]D?k@Yq@?OAUDSLSPAJIGU?UFYAWH_@ISB??AAG@MI]BKMUC[HSRYGWDOe@_AIe@@EW[Qi@SOSYMWY@AG^WGg@HSEGCo@Ee@BM@k@LUD?F[HKHm@LUVUCe@`@_AIUC{@Ee@Ma@De@Kk@LMKeAQGPOL_@Co@?y@L?Dh@ATB^Dz@C^DzAPN?v@B\\KVFX@t@Gd@@`@ARMDENAx@FVINI?Qb@I@KRKfAGTJH@NJZ?THLHf@PRJDLXLv@Pj@LRDXJZHJBXGZBj@FLLj@NHVINo@H?BUAk@^u@Je@JHDLK\\OHCLEl@I@CXGDCh@I@CXFNAXOGUFK\\ILE^DTJ?Df@EX@NMPA\\LN?PFRB`@?z@A~@\\NTELOL?NJNUH?Ti@?ULUVAPOHDJY`@e@HDDUJW^c@H[X_@FYRm@LGFg@Go@RiAH??{@FKEOJQF_@A]Hm@JU?eADOIc@MBOE[[QGWe@K_@HQTNJZLHFENDNXAZRDR_@PKRc@SEEQPi@PYBq@?YNm@?MNK`@EDMAQIKW{AGS?US_@Ge@KKGUBOGYOU?UO[SMEo@IAI_@GEEYSBC]KUSEMKo@oAUOUGOYIEOYYYSKAXGPGr@ITAPKK@oAF_@LODOSAEYDk@SQGSS_@SOAQQEEOQOAUIYE_@TOAOKWQOCMQOSk@MQESMIO]IMW?MKOu@MCE_@IMASQIQUWg@?YBUHSHHJUSUKEUm@?[I_@AUMAOf@OLMMGBM[OISk@IMMDMAKZCEOBKo@DOCe@W_@I[SUI]Q]SYSc@AUKOOAESW_@KAIOCUWUEFWEAb@G^BZGd@[z@C^?ZFp@E^DN?d@Db@AvACX?`@Gz@ErA?p@IZINKh@SSFWAYJu@?{@Fo@C_@F{@GU?mDA{@HS?o@Pg@LCRg@D_@AOO]?k@Nq@Pe@ZH?OSCAOHUBRPVF^H?`@z@b@h@^^HP\\h@PZ\\RTZVTR`@HB^n@VPH\\V`@FTXRXZTITb@PcA?a@GODe@AKHc@?k@JILLJMBQOU?WXKGU@u@Mi@CUIU?m@M]G_@BQC_@KY@e@AUIU?o@IW?OKi@@OK_@@[Aw@I_ALD?^F`@DhAJV?|@BTBf@Rn@Bx@Lt@H`AVDVX@l@EHCZNNBXAb@KPG`@IHKbAHZ?|@Af@D`@NPHXVd@HB?f@IRN`@ETNLBZHRB`@JPRh@Vd@Kk@HKBm@NQJ?JJPd@NRPNLZLj@JR`@|@LXRB\\f@j@XEPRHCUR?F[HEHl@K?GV^bAPG@NR\\FOIKHU^j@@WIYCi@RHTI?WT@BUHIQQ?IRQG]GGKc@Ue@AOW_@OOMm@Ci@HKBo@E_@]aBAUNORPFz@Hl@GPCn@JD?RJPZHBPNLFf@Xd@F\\CP?^DHHIF^ITLXHd@AZK?Kn@S?IFFRMJC^THJT?JMLJP\\RR^T@HLFIH`@Z^PNDSUa@IU@KT@JTPEWi@UUYQWk@Q?AULDRV?UJ_@`@a@l@OPALDVTB[?]GQD_@Au@OUWHI_@BIG[B]R[C[HI?WFg@Aa@He@?OOYDg@?c@Rk@Vo@D[JJA]IOIi@IY?QKUE[GIODQU?O[IIBSU?Sk@QUOMeABSYQASSWUc@]O[[MKGSO?YYI?YUEUBUHAR\\VLNPZLLPJXF?j@NFJJ?Xb@FVVDPRLn@RFHRJCH[Fj@HT@RZ`@\\NZdAHJBVCd@BTHP?d@JXNN?DEJDREPi@^a@d@Zj@B^IHCZINJt@IAEVVX@TKJDNOHOd@Nb@D\\ATD\\E`@?XHHA`@HH@ZS?H^F?Bd@FJ?XUI@^Pj@D\\`@LD^PTTNNGP_@TMDt@LHHh@HNNJH^RDDNJJJ?LLDMNN?LJL@UTXVJTG?_@`@]EUSGQY@KG_@?SFQ@YKYAOOEMa@Gc@FUJGHf@JXNf@F^Ex@Jn@LFLX@p@Wd@EVVJOX@Tn@dAHTZF^FPCt@^PCj@LIYNU`@`@NDLNJBFIHLTLJADe@F[GOOIEUIIIUDo@AUDQE]Me@Be@MEQ[?YFONLXi@JIKt@JTHZTB?`@KHT\\CVTXD^Cn@DJJ@HMGSJe@n@IJIPb@FZTI@NLBP`@V?LTH?FXLRRFFOTn@LNFOVHRRHOXZLDRT@IAk@IUa@OMo@IBOOOJCUIWGGI]Ym@GBW_@Ka@SSOo@?QF[JGHLJ`@VXTKb@`@BNt@t@HTPBPJLPNBDNTDVTHEHUE[HMTNBUIUC[R_@v@t@C[L_@JPRUFBId@Yt@SMOTC^PTANOT?b@TJ?HZd@F?LTPDHLZT@ZHDP^L?TXHERJZSDHGT@RX`@HINHPb@h@\\b@h@LHJMFNh@t@XTDGV?YuAFC\\XBSc@{@YUQWI@BZLX[BHUEIODMKOUc@SCQc@WX?XXTHRNHU]o@k@YS_@o@k@It@MABW?WSSCK[_@e@_@CBO[ZJRPTb@Z^HSIWQIKO@[]}@TNPT^x@LHDEPD]y@AO]_@BKPTZLLLHXDt@`@b@b@j@l@ZJZRR`@TJZPTBR`@d@FEPTJ?TNXVHERT`@LASHKP@RTNA?MX?BMw@oAOu@W[?OQIIU@KWOAOWYE_A[g@GOP_@H?L^NPJANPDR?ZR^RPTLDNLFNKLXV?DNp@v@NZTLZDNX^FRG\\@l@^LK\\IRBDWVa@H[NOCi@Ma@Ik@JIT`@NLPUBYJXPDLIN?AYI[Yy@MQUIC[LSMk@Ua@A_@GCKWKMMe@SGO]QOWa@C[O_@e@YO?K_@FQOSUAOYM?Yi@@QLHP\\PRLCFOPFBVNBBPZb@PDDKLDTf@R?DLBVXx@BZRHNNHd@X`@Jd@Vd@Bb@GJBRHDHPHBVZRAJVRXJDf@b@L@PNTZDAPXTTT^Pf@Np@Nb@F^LMT]VINNP?FHNCXTHEVDRIZXf@DBRLGR?^LLP\\Db@zARBXOV?`@UPER?VEb@J@Jh@NJEFHPIb@?DE`@J\\G\\D@EZF\\En@Hp@TTJPXBTAp@FRNCLLD`@HHHXH@NTTr@LNN@RKHHXDRCNRRGJHNKRTRY`@E^R\\G^RLIDDXQ?ONi@Da@FEJs@AcAGe@?SGi@Ua@G[IM?WOMCg@Bu@Gk@EMFk@?o@Ho@C{@o@kBQw@KBQICS[g@G?U_@CMq@u@]Mc@FURGCk@T[r@K@ELUJK?IJAn@JHFZ?j@Yr@SVMKBa@AWFWIo@[e@GUEJQEEUI?WKQCODWEYk@OOG[OC?Oe@OMBIUYFk@]c@@Ma@?U[?KJSDOIMFo@SETWKAMWEM{@LKNEEc@MHKCILIOK?I^MPWDEHm@?MJQGUDSEGJK?ONWa@ES]EMOM?SOOBUSKNMYAOSK[CCHQEKJKGKUICGOOISa@OEMSA[k@i@S_@Gu@GGEo@Wq@MMAq@De@M[]Se@IUR[Ci@TKXKHSCKTM?OTE\\KPODINKDENQLI^KDMPODC\\IPAz@QWLOQOUVSNQFGSIBCP@XQHW@KIOLm@DIDa@BMJYDSA_@TKd@U@GLM?IJMKK@UOIHMIIH_ANOSSF]Ig@SGO@Q\\CRK\\?TOPaAN@BOU]FYIOBUKK[i@YIGUHQ@_@WMWUMB[EMNOCYu@Qh@QEIW@MVGNKAa@GYKKAWUKID[Ke@e@ASSa@?UI[MNIWMFYGQQEKSS?UO?GYM_@GESo@IKYw@CY?_@Su@Go@Ak@Se@CO[e@QIS[UIU?QHIOK?]e@_@QI_@MSUGIOKDq@uADUMIB?HDVFRCCo@IUQeA?o@Ie@Qg@GIS{@Cc@Sm@ECYk@AUBUf@z@RXEPXRJd@@TNVLNPh@?TJP?h@DHX|Ab@|@L`@PXDG^h@h@Zj@X`@Ij@nALn@HPDXHJPd@?XNd@CT@n@FJBn@XfAXL\\@RDFQRh@XPNd@\\x@NJb@dANDHRHGHXTd@n@d@RAj@d@JGP\\\\VJX?ZH?HRP?L`@VBZOLPRNRAVS?UNURCHLNDPXPFXGDPJHTEBUN?N\\JHHAJUPTF?HOJCRH?SIEZaALEFe@HTJI?YHERHHNL?H_@NJAk@SQ@]TFJOAm@DMGMIBASBa@HKJ@RIHw@CODYXORUEQFSSQQCSDCNKH[@SA?Pg@VKJ[N{@v@SBUCi@mAQSB_@YE[UKCQUS^i@KMDGIWAYDg@SCWLDTSNRTO\\?\\JLKPCFWL?HSA[PSBWPI?SFQPSBWVc@FQPYJa@AYHe@?e@OOSCe@LQCIL_@F]BGJ_@TSDSh@QHAPSLOPa@BeAj@IIQBKO@K`@I@NP]REDG^OZGNKDOLI?[To@PQDSTEb@OPOVKf@?TO|@OV?^U`@DTYAk@DUH?Ee@FU?eAJ_@SAWMQASO}@qAgAOQEUYeAUGi@UDQ]U]_@E[TG^Sd@FRA\\Kb@U`@IBI[OCGRIGR]Ns@Ra@?_@HK@YHY?YQGYCo@NSNUBKOMJUDMLMGWLIEILQLSe@EYYYy@g@]_@K?UPCXY^CZW\\c@LYKS?KY[EAD[Ei@r@WPKIQ[F[R?XSZe@^Of@FZV^?r@W@o@DSHG?OKMe@QIS[[A[SUG@SIYAISc@Qc@o@c@_@GBIUWGGMIC?SMEMOK]E_@c@i@DU`@NJNPn@LVRRHPRH`@TLTt@x@v@d@VDXPJRBTLT^LTJFP`@Rf@`@TH~@x@`@@JINa@j@O^?THVI^o@LGb@FHGRs@@u@G_@He@?QISAk@I[Do@]JIMOJAZBXM^ONSC?j@c@^m@j@]Ri@^]JOEY?MIWDCa@HIT?NIJa@\\JRA@IRUFOl@_@\\o@d@K@[NMEK@[PGJa@NgBH]Zm@EOFOZYFDNE@UHKH`@IXJPRKCk@II?SR[PIJa@Gk@P[Py@@i@JWBYFa@Ru@Fu@IY?URBEYDe@HSA_@DcAFG@a@Aq@CSV{AR_@T[HENYDYB]Di@l@aAJi@PaAb@kAR{@FsAF]HYFe@DENcABsAHi@Ri@NLFI?[L_@BCHDA?IAGTEJAb@E@GAIIM`@Kn@CTB\\M|AKRS`AC^Ct@CZOh@s@pBSpA?H_@d@GNLVWx@e@z@CNWZOh@E|@Ln@ARIN@ZHh@A`@ENBXCt@D`@Ej@Kb@?d@I`@?NCXGFBXATDh@GH@`@Ax@QlA?TIXAh@Ov@ITD^G`@O^MHITSjAC^BZRL?d@SN?TZf@@TNt@?NJXTfA\\HJAFOR@RGDTLFRO\\NZt@THVOFU\\BLDx@Ed@I`@PPAPMDF`@Gb@ULOJAHUJILDPAP]LEPUHNDULDPCHLJMf@HJx@ROTH?J\\D?ZIFJ?DLARHTLRPGPFt@FPUEOFm@PW?GVu@f@]?QRY\\m@LIf@{@NPHKBd@LSBUMWBe@PWJ]IWDm@NsAJGHk@l@sBPa@GYYXOZYNGLWCRSVMHMPo@\\K?RFTF?L_@Xe@h@k@XSZKvA@@TJ^?RIJDRTm@GU?QHSXUXQX{@HM\\Wb@ON?TFFV\\GTHPX@Vx@Bl@TPJF\\CNFf@ARJTNh@G`@@j@PNHTAXNt@V^BN\\JP^LPn@H\\IHBTER@\\RRf@?THNHl@HNPCNDNTD^AJRr@HDHTPUPIj@EHB\\I`@?\\DLHBNLJd@NTJLTVB@HRC\\KR@FNLFP\\ATLHPh@HD^`ATRd@j@XNTHLTRN@`@PXPj@JRFZTn@H@JRXCBEZD~@XNVJ?ZH?K`@f@Nb@JJTHf@h@f@`@PDVAXJNNZ@^UTABSHBTSRU`@ONBTYLDFE@ULUr@e@PO^DJWRS\\KJ?\\ITTTz@FZKdAe@l@EZOZQNM?GJ[DS?SHKIMFGNS?GIIe@SDIJUN]EIRSDOf@MEEH]JS\\?`@Dd@RZDd@JR@PINDt@LBHVNFFNN?HJZH@JNNJ?F[V?JFPBHJVFt@?R@|@E\\ODUPEb@k@NOXI`@[NSRABLP?LK?QL@LY@UPEHQ@UJ?DOTSNg@CWDQf@e@HKF_@DE?WL]F?Lc@JOFHT??SFWHIRw@\\]HWb@GDVHFBOHFJYBe@NIVN^DBKA[@c@HY?[FIPAJ`@LDRWL?TYFUJB@VVn@BJXNVUJYFNLEV??UXo@RW@MNQ?IRa@@UE]N[BoAPK?o@@o@KKCH@h@Ej@WFKAQTU?IIYAID]_@S[ANKT?T[P@b@KJQBEVQFWIMJ]JM?GNKBOEETG@SKKNKXSDICSNEXGDk@ICNk@TKAWPGTQNMA_@]k@s@M?Q]Cq@e@yAQq@_@{BMKQHKZGSBa@HKLi@@{@GKNO@Mn@[B[j@[HMXwAIk@H_@@oAJw@Z_@HYh@{@NYJk@FODa@FIb@qA?YD_@Pk@PQRc@RINBZ_@TE\\OBk@B_@Jc@PMT@@k@NUPOL_@@OLUTw@D_@LeA?[HWLw@NYJk@HY?AHO@_AUu@QQ?MMUWDMA@OUi@UK[TDXEJUDGEMHWIM?KJe@[M?MOMHQKK@Aj@ORIIEa@WDICEXWDI[DOPYIa@e@CWT[n@?b@S\\@LIZ@NKd@?ZINSLW?SL[BCDSAQFKACT]UWNK@KOMWK{@KSSd@[?SYQ?AR@`@KHIZWNQGGP?^FPAXIJEVMW@[FB@TJSEa@?i@BQCMHMR\\REH[Dy@HKRCPRLCN[V[RKZ@Ja@HMh@_@Pg@DCJk@La@BUHYBc@P]Ae@Do@FMPm@GS?QO@OUG[SU?UMSMES?CeAIQ@OZT@JXRLZXKFTF??_@HMTNPFTW?WRHHCBUJOF_@@i@TRRSPETe@EW`@OCULG?[DYK]QGOQJUHNP@BQC_@LITAHu@UOMCGXEd@IOCo@SJYEEGO@KEi@BGFQg@YOSc@IB[YGQHI?SYUMRU@[AP_@FBFTLEFW`@XFR?`@FDTKJ?R`@HHTH?UIEKYK?KSR[HDLOXHDNXTJ?HT\\HLEFDPe@JK@SNI@WESKUFU?[BSOUF_@JK?_@BIAa@SaAUGYaAIA?WOaBQUG_@Cg@GCK{@GIWKM_@Dk@Ee@OUMYEBGT@TMDSTQh@ETUNMi@JU@q@OTIZGC[RIK?m@TAb@e@LUL_@MYUB?VSHMd@IEY?SRIYa@@ONEe@JETDJOb@EHOD[HEAUJELSRBCe@Ie@BUI_@Sc@@OSG_@{@GLK[BYEMQ}@H[HID]Ac@@aBDq@Fc@B{@JI?e@COKAQHMGIO[aA]KISOKWNGJ]DIT?NO^q@Ao@_@_@IQRQDUIIUUDk@h@W@UQ@SEIWLCIf@Q^?f@i@REFSJDTq@No@@WFSE_@DQE]@}@A[Gg@IGCUQm@W[]YGMNOFSXYRg@Bi@?e@HgAIk@Cm@@a@I_@IKFo@VeAPqADe@IOIZ[XIO`@Y?_@EKBk@HSIOA]QsAHmARyANe@Bk@IOIe@[o@K}@D_@IiAEOSe@A]QDCUGCSYUBQHCOSOO@Sk@SLMIKYIb@ITIEETWZQ_@?_AJkBFmBBu@UOA[IOG[OVOAK_@@_@IYKOGBD_AEO[QK@Da@YIO_@c@KA[GU?YIEAUKDIKCWMREID[KUICUXOYG[F[Gs@Ka@AYOIM[Ea@ECMo@I[EEQi@IAIs@I]?WK[KAa@]KUQAOSODgAw@GIFY?m@McAGLQ@]O]EIo@Ml@IJQn@KMEw@ICKHGUG?ISIAEOSOG[Wo@Ko@IUOBI]OKOYMHICD]M_@Ko@@UI_@SO]o@KBGOUKQ]G[A_@FUAYMe@K[?UJe@IUBq@Lc@NKH?@YGw@QOWcAIKIq@IOU^]_AINKDYCS^K?Ea@IEMJGUFKBy@KCK]Gc@UAIm@MU@OOKDa@QGD[Ck@Nk@GE[cBKKS_@YEQOQBKSKgASZMnBWP[Ok@d@KTOLAVIHg@IKIULETk@BQG]b@KCE^OREPIHSf@UXGN?RIJUNk@YGJIE]^Oh@DDe@`@G[YABl@FDEXQZI?E[IIQAAi@Ma@?YBUHS@aAEq@Bc@NUEk@KKINEZOTWu@OOGo@KE_@HWi@MEOe@]U?IOOKUGg@IMKTOLM@Q]A]B_@IQIEWFKAIKG]Bm@DWEKY?IK@YOEKJUIGQC_@@e@S?ID]?QEOJYGCe@MOCUG?IS@i@a@gAUh@ON_@JGJ_@L@NKJANQ?YJO?GH]ESDS`@HRAPSLJZQp@EBGd@UD?JMNO[U^QU]ZE?Gb@JJ?jAKv@O\\Cf@S\\APMX?p@Dh@JNHZDZCb@CN@\\IHC^Cj@Ed@Bh@GHDZETSTET?XQJAZILE^K`@]j@WRQCO\\FP?`@S\\KZET_@XB|@G\\[TCZDZARKd@E^SNB`@G^F^LPF?@\\IZGOET]t@REDTNB@PHX@f@SHOi@g@AGSKFOj@]j@SDU^MHQ^?\\IL?PId@ITFd@GXIJDXCNNd@Ap@IVDLI^BLG`@Jh@?TQ|@?XE^DRA\\H\\A`@RJLNFXLTP?P^Fh@@p@f@D^[HS@UJDF\\?j@KPL~@V?HQX@VXBZPIJNBXP^FVB~@Ah@F`AFHEPNTHBNXNp@?^HHHt@Kt@Bl@NLL|@?^ERGn@?PMd@Wx@e@`AQXMf@UT_@xABVJd@P?B\\Cj@?`@MDIXLNA~@Jd@FJEx@Dp@Cn@KZCXBHSp@SNAJMT?HQZFh@DPHFN\\Fr@?PGLGp@Az@@d@Gb@Cv@Kz@DRAdA@d@E`@IHGN?TIXGd@?PIb@Ad@GLIBKx@BJC^GNDl@JL@ZIn@NH?fBBZKN[p@K[MLS@Gb@JZN@JNBt@Wt@[EWDEE{@ZKAM^?TQp@Uh@a@`@[n@YPWXCJPNPl@EDBj@MTSJ]OCBKp@BRPIHDLTDVIZK?O_@UHF`@CRS?QJLSRGE_@HURCN^FC?[MQY@IU@[Hi@HWHMLBNXHMAOWKEKCYDe@FYh@_ARQf@_ALq@A[JI","cvzEluRCL@M@?","gvzEzuRKDIOEUXT@H","mbyEznOFG?CM[C[M?BOHFDd@JR@HEFC?","ecyEvlOK??MT[S`@HF","{byElkO@CPRSO","ay|Ed{\\DMLODSCYE??[OKAYKN?h@EJ@`@CXBb@NT@m@","u{|Ej|\\LXFg@HCBS?]WoAKEIHKVGAG_@KI_@RGIIJARLNHCFd@ANHJINBZZKPADLN?","{a}Evo\\E@SdAHN?XB`@FIPHJQ?iAKUMIBUHICUKN@L","qd}Ezq\\FXLEE[OF","{e}Erg\\WTU@?XMT?jA@JL?FN\\OFa@TUMINk@KCS_@DM","gg}Enp\\K?@XR?HISK?C","ii}Ehi\\A@D?CA","gj}E`a\\Hj@VIBUO[ICKR","_t}Ezu[PTB[AYMHET","at}Eby[HDJKNe@GUQDKN?j@","iv}E`u[ARTv@HODWIOV{@OGCRQ?CXG@","gw}Epr[?XLh@HDHq@JI?SOEUXGM","{w}Ep}[@b@FNHOGUKM","gt}Eb{[S^KJ?ZCTOd@SnAONGEE_@ISKe@o@UKN@h@ATKNGEU?@TCNBNXCHQHFJA@OR?HHb@LJHH^FHBd@HHFVCXDJAr@ETDTCXHDFu@P[PJHTJEBSL?Nb@CNBTNM?a@LE@PRDFRCj@?Z@HJ^DJ^BJTF?L_@AIDk@DED[J`@Aj@KXCj@LAJYHDBXHCHLNU?}@B[FKJ?JJEx@@FHUL?BKLBHSGQAi@KOJi@CQMSBKGKQEAp@BXAp@SBMo@OUNs@Ce@FQKMILBNETGz@EzAS_@GJGGAi@He@C[KIKRI@KK\\YOICONWN?BIDi@EEB_@EKHOGYOB?SH[S_@ONC\\Q?GMHO?_@MLOUMCMO?E?i@EEOHCUFYBu@GQKFSEMbAINGGI\\Ld@MPIEEe@H{@","q{}Erz[H`@FQLDLZREDU?YIUUWISENQJEh@","q|}Eja\\?PRB?_@GKKT","w_~Erq[PSHBNINHBSPKZTZEN_@Ha@EWWKAOMR@VI??[EUSHKOAOQCCHOCIMIT?ZDZGHPh@G`@SX","af~Eno[AF?@GNKnABFHGNc@?aAE?AC","ef~Ent[MFBNMTI?D[Aa@DCBe@Ca@Bo@Q?IJUL\\s@L_@FW?eAOk@O@GUSK]Dg@@MXQDOXW?SQILIXQH?`@Fd@GN?ROPOKATQBGF?^FD@THHCTJRGHA??@@TCNQRODMDCi@Re@JG?c@?UMU?[EOKCJ[Ve@FNSTRHFTLqAKSDk@M_@EESNAUSHOM[o@YLGT[i@SQ?Mg@m@Fu@I@@[YO[JQe@ULGP?RHT?`@UDGGKTWMO^Pn@KX@`@KBD`@?RMCOb@Ml@KBRo@?UNEBc@QEHQE]K[Ck@O??YKBGUS?ATJZPE?T?BMPJREf@?XKHIUHo@?c@IEKDEb@EX[z@IMId@Q^Cg@Bc@EASPSh@Ef@J?Sz@?b@WT?JUXMZNtA?h@R@G\\HJAZKUMd@Db@H@Z^DPKr@RJZUXa@BIl@_@n@QXCZKX?bAPb@KZZT`AJHHIRABFTFXCNH`@?ZPPh@ENAd@JH?]Fe@T]n@CJ[^CND`@IXHTKTCr@a@NKTCLJPD\\]TIRDZk@ZILBNm@RKD[COHc@?WE[FMGQB]MUNWOm@IAESJGEeAXiAJOAQB_@Li@CUKAKJQa@GDIe@YM?XGZGHO??XLHW\\]F@PI^OXBf@GH?n@Fj@DBBd@?z@CJDj@UHJ_@SDAL","ml~Edi[HXPI@c@OOMb@","wq~Ejv[XMA[QNEX","u|~Enh[MMARHJDQ","ye_Fni[HGJg@I?MP@\\","if_Fti[A@?B@E","qd_Fhe[OQBOJOGUKI?OQYMb@EIQB?`@CPJd@JVVPTHPe@GI","sg_Frd[FIC_@GBBd@","sg_Frd[Dz@ARHe@?i@M?","ql_F~e[CDBA?C","ul_Fdf[EKI^DDHU?C","gp_Fbl[FNL[RIA]YG?TMd@","eg_Fph[GKBYEGMUA_@@i@MQKPIE@UUPYb@AT@d@Ad@R_@?EFNM^FP?RS`@I^IUGD?ELs@SHKE?YHe@@e@I[QRCf@MNM?GYHEFUBa@?c@SU?TILUj@K`AGAIT?l@NARDDn@Ad@QNKYSR@VEd@SAEPDXJDHRGJBfAOHDZERQEO@E\\Fp@FJNHVBVZ@tAN`@XDBa@LENFC\\R?LIB[PUXIt@CGa@F[?_@Je@KILe@A[LFLWHEBW\\q@Fi@WREe@BOAU@YZmAUFMTCh@Q`AKAHe@HY@_@FW?OVsAEe@MHCNCJ","{r_Fx}ZLTPe@EOMIINAX","gr_F~~ZIGGV?l@Pl@@g@HWHNG`@Kd@\\TJE@g@H??WTELNDUPOAQOO?SUAI]MGIP?d@IIG]Q@ER","{r_Fzf[C\\IVDd@LUDLAf@GBH@Bn@RXDUGUJMBQT[BOLGF[AIWK@_@NAD]JGF_@K[GPEQSJG^K?IJMIMLATJCOx@BJIO?Y","uu_F~y\\VWEMQR?P","sv_Ftu\\LVFB?^N@RRHIJBDU?SUUINIYWWSF?L","gv_Fz_]GS?FFJ","{v_Frz\\HZZb@APHRGVFNR[MKCSBOEa@GI@YCOM\\UI","yy_Ft~[E?_@d@GNPJJARSXo@@a@I_@Id@KHAc@MLA^PJ","s``F`yZOJ@PJEHLHO?YQB","_a`Fn{ZIYGXP?","ya`Fz}ZMHKEAt@J?HSDe@","yf`FnpZ\\XNO?e@KCCNKKMDCT","af`Fba[C^ETHLKP?q@Hc@?]GGF]M@?ZM?KQFYAK@KEFEE]DGRGECd@YNG\\DRKRGGG[KX[{@YGCe@U\\GCCe@@QJIES]DGGCYQJSx@@nAJfAXHVPXXb@p@HBA_@FK@_AGIIXKU?OZk@B?Pf@@XLRXTMVD^FENh@JPL?PTARHJJb@@v@NJPm@Ce@Fi@HHIZBRHFPEDd@OHG`@P?FRHOJNIXe@?CZ?`@Md@?RFJAZELS@MK_@q@SFMAOs@IAOVDVXFHn@HABPPKL@HLXv@LnADI\\EVXPIVf@EXINE`@Hb@A`@Ug@Sj@IHQz@KZQR?PNHCd@M^@NPl@H?DQHCDXZNBDRDXA@NLDE^D?Ht@HSDYVBf@Z@b@WFGL^p@NIGa@N[RIHaAJ]LOKe@MNQA@UHMTBDT\\IJURUF{@IYEu@_@w@OTKZCYNe@BWLMX]Te@E]HERqANSF_@CMFeAFTGJRj@J_@JE@BAEDOTUCM@[ZCN]LVRRLCPw@?_@YIKTGIPWHUASIBAs@FULOY\\A_@PDLa@Hu@Ge@DSI[FMEu@HW[EHiAHIAQ@o@EU?a@MCBp@E?Aq@QDCOQ?AWQ@MYOEIN?NQEIOMDIIGX?AC\\?^FH?^D@JKBj@O\\?j@D^GTDTClAD\\?fAEDAbA@`@PDARKJJb@GJGSIFEPGOA_@Be@Ja@CYQN?j@M?Da@Ee@I?@[UMH[b@IHXMNHf@HE@QD_@@iAEUMWBOCU@YI?GOFOAOFQCSIOIg@Zc@@eACg@Um@GWICYUMDYUGOWBKN?PNj@HACd@ENHn@DLCV?NKDEZKTGIFWASGKOHI_@I@Ab@Kt@G]Ha@D_@QHIfAANBb@MPCn@G?Mi@I?CQQPCdAIDCXIEFY?EKU@[Se@Ju@Ac@RK@d@NOBq@N?BYB[ES@QEYQYJWN^@\\JHD_@DHNQ@WPONg@]e@E@SKEQKGKWSYEDO_@QLIz@?j@I?KNQH?TKJEj@LFTu@JS@h@DZHH@ZHPKVSGCTD\\QTAZLBFVJNCT?\\GFKKKHEM","wf`FhrZDZN?AOSK","_g`FfzZF\\HBJXDILD@YOKIQY?","ig`FvuZHb@PU@c@KIQ^","wg`F`vZOXPTAo@","ag`Fpm[MJHZHL?d@DFF}ACSOL","yg`FtzZGBA^Hc@","wg`Fr{[JD@^HVN|@Gd@N?BSCUDOC[DIOk@@c@KUAQQ_@?ZIx@","gj`Fni[FZJ?FYO[KH?N","{j`Ff`[HIF[GEK^@J","}k`F|kZJHFKGSKT","_k`Fxc[Bh@FC@[MI","kl`FbnZF^NO?_@WN","am`FdkZF@Pg@ICOh@","om`FjqZGNKB?PRQ?S","_n`Fbn[?NHTNHRODDLKBc@H[GKKDMPQWIEQv@","qw_Fbv[?@IDFVINSF?PJTHRRNBJIPCXp@q@Te@XSh@INKNe@?OOECJQ?S[KCQLOZICMg@IKIPMHGHAA","ys_Flk[DLN]HAIEKNG?AF","wq`F`uZP^PELYH[ESHO?k@Yn@CX[JET","yt`FjtZLDHX@TPCBULGL_@HCDUa@KEPq@TAH","ew`FhyYPOGQID?Z","ev`Fnf[?h@LJ?h@BVNBDTRBTi@Ru@?[CS@[KSE]QMMWq@z@?p@","qy`FdtYBPHONE@k@OBOj@","mx`Fpi[CLFTPSEIEa@I??Z","}aaF|dYPSHHKPHNLKDOLRJMKUMIJQFUTNHSF[M[P@?q@Mk@MSm@^CTGJB^G^IDBr@ITC^","saaF~iYIVFRJEHYM[EN","iw`Fll`@MRIj@DDB_@NUAO","{daFnyWAb@DTEPJRFi@L_@?KZELOESYBGb@S@MI","wy`F|k`@KLOf@IECXFHOfA@RP@@XOXIDCPPHPYLGR?HO?YHKBSEUFKRI@UGIYDMIFs@IYI@","q{`Ftt`@AK?@@H","i{`Fdw`@HIC_@OYS?Hx@ANL@FG","egaF`kZHDD^Cn@VHA\\d@XJCJLGTNh@?`@PHVVTEPQIOSu@@KOSQDKEG_@HULOFUDe@H?DSKa@S_@IBG[KJUUU@UNSDGNAh@","yiaFreZDP\\WAYI?W^","saaFhd`@RLDJND?ULQGYGEIPMAOV","ijaF~fZ@THDFQIOID","{kaFxoZECBFBCA?","upaFvbXE]FGE_@Y^B^C|@RHHIEg@DO","{qaFjgYAHDj@PNJANYROLUE[[Oi@ZGJ","coaFpm[?d@H?HUSO","ataFp~ZNBJKBSHBN]Cm@Do@HYF?H[GY?QSOKNY?KFSBQPK~@K?AZHR@p@FN?\\H@@XJ@@KFI","a}aFd|WL?FQY?BP","}}aFn~WIFQh@J`@FGHNKJFZNZHq@DRJ?DNE`@IJAXBJAb@C@@h@HXA\\BR?n@CPTh@?d@H^Gd@?p@Hj@I\\D\\C^Bd@NRIJ@^PJIl@MS@QGc@Aw@COEuACK?i@EI@eAMq@IDGe@JYUW@c@L[CSIGEs@@a@GYKOIDIWQS?KKOBYEESBK^DNKZFJGX?TABQT?TGj@ISDaALULu@Cw@HGFa@Ki@FQS[Ti@@UKk@@Ga@MMDC`@?~@PdADDBXS??u@EYM[B_@Qy@IGe@JCJO?[ZKGIZe@y@I?Jt@IB]XAJ?EU@ILIMLk@D[F?@[GYFOLJH[ZB@]IGI_@FKQSSa@Ms@Eq@Di@LIL[V?LW?_@FUFFRWEY?e@C_@OY?QMO?YSRKIIQIy@?IGW@?COU]CQSEK@?[ICMLGNMEMWUW[JOYBO]]KDEPBXDHMT@d@@?PIRb@?j@N^?d@LPP?HJ@^XFJTDVNRAj@Lj@TTLRCf@PT?f@GLC^ODIh@Od@ORJ`@C^LXMd@?z@I@?u@GOYMI@EQF]IK?e@G_@KAEYW?AXa@JKCOOO[JYBQEc@@MEi@]@]KYRM_@De@Ek@Ey@OQWD?VS[EBQc@Ga@KESm@IAQ[EDMOEU?UGu@@SGUMNBd@EJ?X]t@]n@MDIRUc@m@KMUIFMGGYIIYKI@Ym@CYIKM@KDGGM@OXAXQGKl@OPOYKNOFMSSe@KRQV?BINAf@KOSx@CDOZMGIMCRSI?d@IEEj@CBINAJMCKd@A?@\\Pj@?D?D?B@@@?P_@FLFOJEHFL^HDNXJn@JBBZDC?x@Ad@FJ?B^F?RJBDPLNHTD^CNV`@HB@t@B`@FBDXT|@HLLl@NLLCXz@Nn@LXLp@RCLx@F`ANHBJXVLTJ?\\ZPDHTENHx@D`AH??X?@?BJTDDR`@Nt@E\\?VNH?ZKAQDMNLNBt@C??@B??BNJHGHJAHJFAXDRNIH^WN?PFTJRJ@B\\NZRV?^RGAj@HHR?DTKVCXBn@DHJLIVLd@N_@BZJC?BNJ?b@VZ?RD@LUFi@G]Dc@A[N@Cb@H^Jn@NWBH@KTUDJLBHUNOH?BSNIBOXk@OOPU`@WH@PU?a@FCT[?|@RFNNJ]B[LIOWTGAa@R_@BYHh@N?HURIFt@aAx@MZCNNHKZOzAOJ?RGVEbACZGBF\\FF?GLVGd@HCPt@LID?B?PE?PI\\MD?TNCHF`@i@HTIHDZLDLE@KXJNIHBXUZSNUNHTK^Y?NWPUd@GAm@NSJSTIEQHQI_@EY@MHINIEMJLn@ITLBS^Af@Qb@BPYNAQO@Dw@Em@?e@_@FCMMTBx@Id@QJGb@a@J?j@HRHUHNNIFPATUb@?HIVYXDTGT?X?@J^IHa@K?PFXRNJC?b@HFLE@NRLFSb@`@@WLZHBLJRDDaATYOe@IJKECOPG@UH@DQJOB`AR`@PFA`@UIITNTKX@XAd@UHHZAX\\d@@CFH@O^YN_@RLLZFILR?JNNR@Th@IBB^B?@?^PHKH@RKRy@?ALONHZI@Sj@KHH\\OPHLMAW@CFa@RCCe@LSAUOAKDIq@IO@OIYMKK??U\\?@OJ@@TNRFdAHNVFF[G[@OIa@He@HDFj@CH?`@NZ?TPLBc@XUKQNSIw@Oc@?a@Oe@Co@ECIwA?{@Ek@GcAHNBz@Hn@Nt@DD?h@C`@Fd@V|@APJT@d@R^BZRTRLVC@^INKDKRGZ@^HCT^RKH@NHBJ?d@LTJABPR[I_@KBM[?M`@a@FNPYFJNBRIJU@UCUOYb@EBi@BKLIFaAFOO[Ne@MI?UM?Q`@GURUP_@N{@HGIe@LMGk@LKHYE_@PAB_@NMB}@DMCu@NF@]K[L[?YSYPEH[Jt@EXDJLCHOJ?Hk@PW?OFONcAHEAd@QpAHXL?Mx@HNAVMDIb@?f@GV?VGd@H^DHPj@CRBP\\BNf@HDHGDi@HU?OP[Fe@T_AHXBZC^Q^PTAPORHTD`@Jb@@`@QD?^HNHOL?J^THPCJX@XN?LPFTARBPATRHPj@Hn@?^BHNSTEBRMZK?OMM?[LI^[`A?NHPA\\Dd@F@P[XJ`@]JWF]HG@cADOL?H_@R@ROFUF?L[NQBYNUTo@YIZu@?h@RYPa@HTLU?c@^a@BO`@e@?SPBJ_@GKk@j@A_@NOIo@D]KCOOGHISKNUO@[G[?YOeAOBBTWPOKOd@?DGUPo@ROGMHe@Ac@GI}@r@U_@Hc@Ym@GPOEKPQa@DKNILBDMEOQGS?GYGPSXMDQAAMPO`@UJ[LK?UJYYSf@g@DUEOODCIYJIRMU_@f@KULGFSN{@J_@AUQ?@YJBB_@OKASQNIISVKMIRJVCNSDQRATSQOZK?KNIZ?`@HN?h@[T_@HAk@J]CWI@MTEGYTGODUGICo@LKFUGONMNk@Ao@HG@]EQJYE_@Na@EU?_@DO@g@SSKBKTMFMMG@Wt@Kj@IL?PIb@GGBa@ME?_@FE@YGYWACJUNI?GXUFCR[^ICKNB^FD?t@Ch@IC?[BUSCGUWD{@^i@d@Gb@D\\M?CQ]BGGMeAMg@MO]u@WOQe@GCIg@CCWk@_@DC\\@f@KABi@CS@e@?mBHy@?m@Ji@Fj@Jj@KHSb@@l@Ax@FXXDLIX^C^L^XJBN`@`@DTNLLEJFNQ^SFBRZR?TO`@BH]R?CUFOVGXUNY\\OX_@LIFOT[@UKKCO?_@ESXKBYAe@SRQCIHWn@GKODa@ZMXON[NVs@LODQN]AWPHTSJUPCTa@JDDUTO?YTWOOQJSDB_@PBHe@KUHYAUWKKHW@c@d@SOJQ?YLK?S^KPOOe@KEGOSEHm@?u@@WSSmAABUI_@IOKDGNIOUEUZGE[@]bACp@BNAp@JXEHD^EZ@ZEXBZMH?j@FNA^I??UKaAHe@Cu@OCEKHYHaAG]OGH_@CMD]KSOJCa@VYTOEUM?AQOSNQFOKUJYAKN]F?JQD[KSELK?I]QIIMCc@UEYOWUODIjA@j@CRBd@EZID@b@GZCq@D{@Es@@_@GWS@IWKDSEIVAZc@m@EJ@X[JOOMJN\\H@Db@U@KED_@WEDb@ON?YKHAUU@@NRB","s~aF`cXB\\Ph@PC?[Sq@SH","czaFxxZi@BGHCV@RH?LOJXD@H_@?e@","whbFnhY?ZLD@OOQ","}ibFd}Y@RN@HYAKYN","kibFj`ZGDPd@@YHWUD","gibFplYY@WTH\\LCTYBW","qkbFxlYSR@RJ?LSGS","klbFx|YHJLKTDHOAa@EOMF?ROPQL","ambFv_Z@WEGSBAN?B@DFPJBBS","{mbFj_ZECAB@?D?","cobF`bZDJBj@JAFULGF[IUINIEUN","iqbFh|YDJVIJULNVUE[ZOBTLK@s@YTMGfA]FXGd@HBf@_@BSAQDUCc@D[G_AAaABOLIJm@QMQNEKIHIOWNB`@ENICU\\C\\I?ORDPNGB^QJ?`@_@T[KYXAjAGZA`A@?BA","irbFxxYBLGVINC^BJPMH?JOAo@E[MGCN","aubFnt\\H_@ICERDN","yqcFrmWA?@B?C","u|eFfyUBMGQ?sAIAI^IIQD@XNCDN?ZHAPX","qmzEv}HAOWZIh@JCVq@","yj|Ef~UPb@JNR@TADUSi@ICSW[f@","oi|EneVOIQFBLPFJVHG@_@CY@k@?y@COSr@BNWJBj@NELT","}l|EbfVRGDLJEI]SHGR","yy|E~|UCOLODUB[GWA[QKB_ACa@IEUbA@TJ?Sb@E`@Q^HLKj@@NLDFN`@VHMCIFe@","w`}E|mWP@@NL?@RHNPOH[A_@QOAYRQJi@GUW?@[QSQLOVDh@DTE`@LH?RUZ","ua}EnoWJNHII[KT","cd}Eh|VJVDQIOGH","eh}EvcVD\\HOG]GN","oj}Ev~U@b@HDHIU_@","ak}Ed{VWNQZUn@FR@d@JJDXJHJYTPPQNCNXAZGb@Ft@FDBZN^VIDD\\ALNT_ALK@_@Ri@?QDOCoAFOEOI?CUUBCUKJGo@SAKDu@O]?]IOD","q{}EfvWBTL^LJHXIHCZ?^PZBTRj@H\\ND\\X@TJP@XVf@PFR\\CX@RP@JQRu@FMP{@NQBSNUN_@JOBa@CSFKTITUf@A?ONs@C]XMBa@TMBaAIg@IWS[I?SK?SGW[{@M?QY}ASIU_@UIBMf@BTGV@d@Cd@O@EQC_@B[Ms@g@RY^Of@@p@Mb@UJBXQ^G@?TGNBNSX","wz}E|jXJd@KBD^`@IIQBsAFUGWHYSIGNAz@Mj@","}|}EjlXBp@Ld@Id@Hd@EPPVBL?b@DTFfADH?TX^RKHSDk@Kg@?u@KIOs@OAGSJa@Ci@FEIk@JOIK@OQ_AOKMFCV@\\KV","yf~EnrU@JPHBc@WE?R","wh~EtfWBd@HLHCHN?`@B\\P\\Hl@n@]HO?OR]Bm@Ka@GEI_@ICWb@I@OQLY?UGg@IMQIKBQXA`@DHIZ","iu~EpwTIFDXNO?OKA","iw~E~zUL`@@NLHRUBa@Se@a@`@","iz~Ed_VKYQZAXH?XKCO","s|~EbmVFRL@Cd@VNRBRH|@mAH]RSRYHQCUBc@AsASe@IGIa@QHKESWWBSRMV?LMTGV?TQl@FVSn@Db@GT?P","u`_FxzUJPNURE^YH?Hk@A_@I[IAQFK\\STG^NFc@h@","g~~ExfXDTHII[EN","c__FpjXADLh@HHFTLFHEC[@SHEC[i@[ON?J","y`_F|iXQh@TECc@","{a_FxnXNNLDCW@OQ?IP","wf_FpwURFBOOEGL","{k_Fr{XTO@UUPAR","ar_F~oVPd@HB^IJIHU_@UUCAHYN","is_FblVBRLON?HNDUHJBXDTANPPJAJTREFDBVHABe@HUH@Xb@?VMVF`@GHEj@V^TDRd@f@XJCf@RV@f@WNLTKJKNCNDFGPCTJFRp@EJ@FRJc@HGBWVFJML?FKJk@@SCe@K_@?g@c@[OWO]SW[Ga@DBPc@n@SN_@RSGYHIAa@D]NYZW?i@i@?[YU?O]UCOQCMQWCIOMGSDMKYCCNOC[d@","ot_FlmVFd@D[LGDKA_@MHQ^","gu_Ft}XDZP?La@@Y]b@IC","}|_FdiVJNDUVMFNOR?f@PTH?HQP?RJHQNSLNJd@INHT\\[AKOG@WPJHd@RHPYFNNa@He@WWw@KKDSW]FUWK@UUo@HEEWf@?L","s|_FvmXLIEUI?GPHL","yd`F~fW@HXSE[EDO^","mg`FziWFDJO@QIIKT?N","ol`FliU@RHDNQCMSKCP","ul~EjaWFu@\\OAIHe@DIIYSEFo@NE`@B\\_@d@H\\NHIr@TJOCe@LERu@MIEQ[MAOMM]?IWi@WQSUAIFOED_@Ia@IIQA[MM?g@H?Jc@\\KCQNESD[LBLY^ON??a@Vc@PBPYTOT?^HLOBg@Ac@IY@KMq@Eo@@o@LQ?s@EUMUMEBc@HWCYEUOYFQQYCUGCE[XRF`@NJL^HL?PHX?TDNDf@?hARPDX?TPHHXR@Hz@Jn@P^DUDCNTEXLTD^^TNA?]JEPUHD?b@VTF?XVn@ERBLXG\\FNVRDHLGJ\\HMNHJQ`@]NEFOLDd@KY_@?QHYE_@MOAQMi@?QJIe@kAAYO[Ac@QQC@SUMu@MLk@i@EOYOGHI[?SIWQCISUMG@IYUBIODO?a@DICUFIGUIEGYWOE[WCQU@^U?A_AGGKP?TQDINCQa@@KGMNS@ORISd@aA@SK]?]Q{@I?E_@?]EGKw@K[OSMi@QKAUS[I_@KO[?SSYAON[EUYIUOOSIK^WZ@r@AVD\\Az@DF@~@BXCTKYGg@IIMH@`@Ip@B|@FVAj@Lt@p@hBGVBXDBF`@HHF^VdAKIG_@SUCXPP?THJ@X\\^BZEr@GFGd@QKK?GKKZQTMh@BPN\\OZATYzADDId@B^GN]ZETMNKX?NTl@RXATHb@`@v@ATKACd@IUKEGWO]]kAMSE?I`@OEKDUGOd@Ap@J^BXIv@GXF`@CLLd@L\\?LT^Pf@?XHNGJMUI_@e@{@Qa@AYGUCe@BUKSMBEPIHUAUm@EXLD?^INYRCJSD[^?JUHSZGE@a@KM_@KAKOI]DIRSPKZ?bA@\\JVATQJFJRANPH\\LJMNc@UWJEUDOUECSL_@CKWUSaAOOUC[IM?_@MI@c@Kc@Cg@NIAe@FUXUSc@GW@SGSF]BSKOCa@T[EKTSKMDSMOMIDCd@m@VSd@k@^K?UNMRMHIP@TUb@FVBd@C^IZWAKHQCUJOXq@PENKHOb@Cf@QLCVIBEX@`@QUI@EQ]PHXIR@TP`@F?Bb@Ej@YZ?XH@Ja@PZHUZULCFTFMNLHRHBj@`BB^CPBRCd@BT`@SHTATF\\RJLIVa@b@k@HC^i@RLRCLILRP[XJA_ASg@De@RJNRRJNN@TX@@LSf@VNv@a@CSREHRDUVe@VFJUV?PQRe@FED_@`@s@DOXU?ORk@HIBRUh@FPTAV]b@LJIHSPEEb@ENSJm@CWXKCYHHNRJARg@@OFSp@KN?NPPi@LYPSHMXIZ@NJ?DNPEBO`@EHf@BZHRR?BPHHJZRBPKd@EIZY@?h@UIy@w@OMYGIMSRFVPNJTHFFTRFD\\CJOQMZYPEN]d@Ih@YJUt@Kx@QVK^HHFd@IHI`@KLu@@CDUAa@TOXO@WZGd@QXK^IH@d@ITX^ZUXFXANN`@JVE\\TDd@LEV@BQMIMRGi@P[V{@LSJo@HAFURSLUNBJ_@?YLINe@LDFRVOL^CJMLi@`AGP@RNh@NPCTAt@TIFFT_@ZGd@MDOPUXDEV@NRQGINUQOF_@f@e@TEJKTi@DTJAPFCX]EOH_@\\Gn@h@ZFNM^MLEZ[`@ODGREEIJET@T]BIESj@KCMNARW@AXSNM^GEYFWXERP|@Xb@JZp@?LBx@MRKPi@JUJEDOJ?K`A@VS\\GjA@d@LNJ?LURAHJDTVDPQ^V@UWGIy@BKVM?e@Na@b@YXEVULBN`@DSXUPGNSHg@?YGIPQHm@NONk@Co@?[PO?e@Je@?UZo@XgAAe@PICQDYOCAOUGKFIGKFQGQNCSQ?KJU?OLSCURG]?QPUIS]a@I?SOS?CUTE?O\\c@LGNTNJN?HKVJK[CU]UOe@SIa@?GYL?LI@O\\X\\KBc@PWLd@RDF[HGCUJUAQJIFHV?^PHOIKIDAUKO@_@A_@G[D[EOWUICIWDYPj@JHV@DEAa@RTDSCWf@eAZ{@H?\\c@HEVo@HkA?WNIB`@C^?n@Id@Oh@ULMVWLOh@MRK\\Gr@U`@HTS\\FPHKV?VI@RQPXd@Gd@LDHTVnA`@KPFDGPFJW?i@F[NEBPv@a@VIH[FEDYPODSX?HULKBa@F?HY?[Qs@Dq@?YMe@m@KOYHEf@JZ?NHHTAX?t@@VFRTCHL\\UZ_@h@_APUHa@?c@Qo@Ie@Sa@AOSa@F_@RIT@\\b@JDJXHDBTJ^VC?XHJFECe@?o@GOKwAQuA@WG]MwAGS?[PkAEKAu@QS]DWEINKABU","ap`FpvUHNNUH]Ao@IQWU?^LdAI@CR","_o`F~qWAXJJFKBc@KIIR","{}`F`_UAJJTPL`@[Ru@P]AOBe@QKOD_@dAQx@QC","idaFzjT@\\PH\\ALMNe@CUSECDY?WXAH","ujaFhlS@d@BLTSL_@HK?YM?OQEOOTBJCd@","claFnnTARKCMH?NNHFd@L?@]LKGq@OC?DA?","knaFjeTH\\H@BUM_@IT","epaFt{SRERNHCBWQO]DEZ","ynaFzoTSU?RR@","wraFvgTCVJVFa@TH?c@I_@I?Ih@G@","_taFbcT?JNHHRX?VFBUPQG]D[Qq@IEI^FTIPMHKIEQQTEZ","ytaFbkTTAASWEBZ","iwaFhgTDTPFPEBKBu@QIQWCl@I\\","_waFdiTINDNPDDUIOI?","}bbFvvSC`@HL?e@EI","mqbFxnSKd@MHINb@fAFYPQHe@EiAKLGIIN","_ubFp`SRZHCHQA[KOYd@","iubFfjSNEMUAZ","oacFvhSRN@ZL?NKJu@MU@k@KUOOUZId@Hj@AN","uccFj}RHNBYGKET","{ccFlyRJ`@DOG[IH","qlcFxkQKEIOIRVJFI","ylcFp_S?NPT?[Oi@A^","wscFndPKh@R@Fa@OI","wscFndP?YWGL`@H?","yucF|wOLPHOK[KX","_ucFfuQCSQF?ZFDLU","gwcFv|OFXATLLHMRHBc@MKSg@CLO??N","iwcFt~OAFHb@Hi@MOCL","gxcFpfQ@TNLGk@IF","yxcFrwQARP??]GGGP","qgdF~cKQPJXLBPNNMB\\PCRJBXLC?WMY?o@E_@a@GKSKZWR","izwErwRKC[Ra@`@IFEP@^DDd@IJe@TQRI?[II","qbxEhcS[?OE?OIOMECSOUOOYAy@^i@FIAi@Tg@h@OI]ZM?_@d@Qn@Wn@SPKR[lAGb@KZCTSx@Cd@Dd@?ZFTLNNDNe@Dh@KZHx@X`@NHJCLNHx@Pj@FZZ^^JNNVJR?v@RLHDPJHNCVHXEJIJWp@c@ZYPWJ_@VYBIR?j@URBZCRXRJVFXOX?ZFHk@Pa@DUNIJD^?PKj@YR[Hi@Xk@BCRkADWNc@LGBoAHy@FqAAI?{@CWIYS_@?o@Ea@Di@AKHc@Ck@MQKEIOIe@EG]?IMOLULUDCJWLS@]IQWKYMAEp@IXWp@Kp@MNSDc@m@Me@Ce@KMIe@GIU^K\\SVWNEXMdA?n@Mf@","{uxEfhRBXRn@R`@VHLSPk@IO]OU?GM]G","c}xEtcR?RHJCXDXVZXDHNXHJVZHRRVCJKDUYUM_@Ay@VBG_@MSq@]QVY?e@EU?EJ","ouxEpaRUGG\\HTFCFg@B?","egdFrmJJM@WI_@KJFx@","}ldF|}JOg@SMSDRl@RDHZD_@","mtdF~bKIUSJJXRBAS","uzdF`~JOTBd@Hn@Dp@Dn@AJNd@HADNFj@TPl@a@Lk@Mi@Hi@YMFc@L[Ce@c@VM[QHNt@@`@Ib@UJGUJU?KMWG[GIC]@c@GK","eydF|iKGYKOMBOd@STKQIZFZH?RZNGDOZIDYA[","q|dFvpJ?^DLJbANHBUAUIYKKMi@","g|dFxmKKCId@@LNEBi@","e~dFljKK[G@E\\Qj@V@X[EU","uaeF~kI@RA`@FN^?Qe@U_@","oeeFbbLHZ@ZFFD\\JB?t@ENHPBRJDL^`@PVR^?b@TJXJ@REAeAFOBe@Ga@Bc@FWPSNN`@KDINDRWN?X_AFCJa@LEHe@HONJHUPKRDPITk@T[FYRCFe@IOEUDUGq@EODY`@aAIi@MBKn@I?CCBH?HI\\@h@GJK[_@KOc@?}@K]G[HUUOK[Ei@Wu@IBI^Az@@TGNUi@IIIN?XF^ONKSK]SMQRAd@UTIUQP?d@INIa@?c@GGMVKd@MLEVBNMRWl@?NO^Eb@M`@?j@Gr@@PENM?COOE?^ETOHMOMP?r@Kj@","esdFvrK?EBU?KPc@AKJUCUBO?u@K]AgAMa@BIIk@O?Df@DLA`@M[G?QYSECDKn@BPNNCnAFP?TFLEXBl@NHb@d@@T","qfeFp|KDRp@SHQNkAAYQk@SGOVDj@GVKRKn@?J","uneFz}JQMATHLHU","uoeFrcLLUL@BNR?FNPUH@NM`@DLMJWPDJJFOEQNu@TMFU?]Jm@?UI[KZ]ISQ@ORDFWAOMUB]m@WCYOOCSTBLEASTk@VN^Ef@HTOVIRUXk@TSHQAUQSGQFWRAGUOSDQAOKCAOH_@De@Ae@Ie@K?E^IAKi@GKCcAJWDUEYQISRMEVo@Ak@G]DUG_@MwAGUa@{@MCKOKe@Jk@bAT\\U^[L]b@QBOVUJELU\\FNWGIEYEGE_@DO?c@RETRPTBP@r@L@JOAOLGJFb@OHXQj@Gd@J\\V`AH?Nk@AONy@?UGe@@QGOF]T^HjAHd@?b@TVB^e@?@XFRBr@LBEx@IZ?XRVPb@@NNFJOGa@KYUw@LYP?P_@C_@FGP@HHHd@LZARMCIKW^CPRb@HD`@c@?a@\\e@JEBOEYDQNNPONFRKBHZ??^HJLBDSTIFa@X?K[@ONEP@LOA_@KWEe@FIEs@CQIBGTGYUOe@EEPEh@ORO`@MS?KS[IDQUKCQREPIBY_@@YMKGOQDMQI[IIEUJO?YMIGh@WIQLCVMb@EFIK@_@Ia@?YYaAMCFt@Eb@QTk@IGOKNDv@N\\AJQCOMY_@Cc@Q_@En@SDKWC]R}@DEBc@Nk@LCBQHE@]`@R@YOWOIGOGNSIG[Oi@QBWOI[YWG[F[De@MUUOGUFc@HaACe@QEKPGGe@TIMS?C[OBC?QMWGIV[I?^H^RTB\\?f@HRLd@Jv@PL@TA^@TH\\LUFe@HO`@XPACs@T?ZR?PGh@QDATKCIQE`@@d@HLFf@_@OGKGRKDKOM@I\\IJ?TONK?IKFSOQ?]MUMsALc@a@BC?C@QEOJE?QNB\\RNFj@HJCn@BTS^?Zp@d@HZANJTHKL?FZKRB^CPBNATINQBCMOGMVIBMS?e@E]KOEN?d@KZMMGQ]PG]GMCj@Pb@@XGPKOKAAPb@p@PERNHELHFZHD?n@]HGEE\\OR?`@K^ILKCE^Fn@Ev@BTN?Zr@PGE^KLFPGjAMN?h@St@MOCc@UUE_@KEMa@?OH_@EQUF[g@KDOXUCCi@BG?e@Xs@NOCe@OLO?QMKe@KNYU[TIAOFM\\Ap@SXCZ]XAz@QIAe@EUK?UVCh@I^e@JC^DRJ?Fd@IPIt@Sh@?JKTGn@ANSTMp@Al@Wr@QNAn@BLEl@FTCb@@PJLHp@B^DZNT?~@@TDp@BBFBFf@HWNLNEF^LRBZLPDXPBJVLG@YJCHHRERJPEJOZDTAJDNO?[JOJDHd@G^LJLDT]J?LLD\\\\CDJJEPL@?","kqeFjiJB\\TG?]U?CF","yqeF|~HMBGj@?TX?ROEOMQ?SC?","}xeFj}IFd@TFBXCXLZATTHRUP^HCJj@AbAGFCn@Wj@EAe@PZDNNNh@TKPFF^PAHNL@HNNJHECa@He@GUKMGUHQJE?c@I_@Fa@@q@HGLe@GKF_@XECYYg@Km@QBWT_@r@QIGSIBSMMQIYKGY@WKSN","myeF`pJNH@QMMCT","gyeFtqJ@P?t@DZZFBi@L[NE?OI_@M@Pg@QUEPC^UDMR","{xeFpeP@VP@I[I@","}}eFjqJZzANd@HJDo@EWLk@Q_@AYIO_@NE^","s~eFl`JBPNFPSMOM?IH","}~eFxkIFZC\\FNNW@g@O@MK","g_fFf_L?d@HDBUEUG?","m_fFtdKIICUQL?|@R?HU@U","cafFtaIMF?VTHJCBg@KIKJ","e{eFv}HCHWCEWUWOHJb@F`@ERD\\NhACT[d@WHSUIJIUBOG[DYAYOKAh@HJ@XGFB^Mn@Dd@KJOGO`@GUNo@QHEXMVL\\DTHFF\\?f@Gd@JDD[AKNKD]V[TOHU@UZo@R?BHZX?PG`@A^FTCXNb@RGRF@PNTJAJ\\\\FJIF_@Ki@?WDO?c@U?OWG?UP[b@IMQ{@A[Rq@HOFe@j@WPNJEHTRK@UMOI[?YDOMYQQB{@D[NC?SQFCOWIO_@C`@On@MHMEAD","kbfFfjIKMO?L\\JD@U","ccfFtoJ@TPCDMKMMH","gcfFxlJ?^V^~@CLQ`@M\\e@BOWKSBa@SMBe@OEIa@jA","kbfFjdKNUBa@PMJBFSJAHi@RUHa@@[JWHg@LUEc@@g@AY@eAOq@OkASISTQBu@d@GOYSOOFUE[SCE^SRCp@Zx@HDATBlBCd@Sr@IESDQCERDV?^MR@d@NDTz@NTVBDTHDFXNSNBF@","uifFx_JUNDNPEJDj@KJKIWSOKBIRQF","elfF|`JPNJOFHHO?O[FSL","}lfFnuIHRLHR@JEPw@Ao@OIMT[^M`@","gmfFlwI@TPZHh@Rf@DDRALYVR\\JP_@BQ\\I\\DTPHb@Fh@EFOdABXJEb@@RKGK?WTQHi@RUZHRIFQXDBYSe@?e@Gg@FM?e@OKM?QX@JEXYJ]Io@BONIEIZGEAe@g@YIDIYYa@_@EUj@GZ?b@SJECY[WA","upfFzgHOFLb@DKC_@","grfFdmH[?ORe@UGd@Jd@PVDRh@CJRHd@?TG`@Dl@TZVdAHHB\\Nb@H?Bn@JC?t@HJCbAMVIBA[]@Qk@@[a@?KMI[?_@GAQ_@M?B^Cf@IT?RPJTh@Jj@ERBj@JJ@XSTDHNGX?Jg@Rc@TGL`@IZHFBYLMPf@Cd@HZXj@LJLh@?PHL^HTZFPMNBNXDIh@BHd@P|@BJSNBNICa@i@N]I?Y^QGOK@[QUs@MQESKO]G]OCUEs@Hu@DGLNFWOES_@KKCa@Ie@JMFQH?BZC^JJPENHR[?SWE_@@I[E_@Da@JYOWK?GMUAAf@[_@Aa@Li@ZLNPXHFHJULILi@MBQEB^SZ]Ma@g@][ASSOKQSCYo@Gg@E_ACi@Fg@ZMQgAJOMKAZITQXI@","kzfF`fJREHYKAMPCN","uofF~eJNNCPMH]D[IQNENBT]RSDAJP^GZQNHh@CTOCOH?NL`@CXMHKCG^ELLf@?JMLQUKEHe@Mc@Ca@S?KOIFBXMb@GIA_@OI?g@KGM^SA@d@LZBXNFNRh@IFNDx@LDD`@Kh@?XJDLPCRMn@@VMXGh@J?ZSTi@?WNM?[`@_APKRNLKRGd@VJm@?UX[BYH?J_@DUUBMY?UIO?k@C[OJMh@I?INK@GQ?ULc@BkAJELYFa@PKRWRe@RQ?e@DOV?TNHIPd@`@BDMGWc@OAMUK]g@L_AICILo@`@MNCd@@X","a}fFjhJTTTDNCR^\\XN?LKT?HDXCNOYQ?]PUM[UKEJMBCOMDGNQ@MVKGMUEHQSEa@a@KSVMHCd@DLZD@?","c_gFvhHNj@B?Lj@EXMBL\\@XCJBVL?LOZ^@JT?NHHTH?DUKOAUPc@TE@UQKKc@Ca@Od@QDIJi@KSk@Ai@CK@c@KEW^","ic{E|vKEy@IHNn@","if{EhjLCK]Z`@H?Y","eogFnjESKHYWk@CXYc@E]E|@UGCSI?EXAvABNRCH\\JILJJARNT@AXBHVM@GJDGo@HC?[EUWOEJ","ozhFveDKWENPF","_}hFnkDC?I_@@WG]REDk@a@?IEEe@?[Dc@ZEPOHULEHNNDPPJEJQZDB@QMK?WMEOS??a@HON@LKX_@@?FEDUY?e@?KJBb@KJI[GPKA@v@KBCSHg@Gk@OGKXK?KUKDMKSD?RU`@WZDq@?_@M?IOYH?SM[EJM?IGQTI?KS?O]AQ^UI?OMI?h@KTQEUPGRGOJk@?MYIHUBe@HFNOHFD]OCGK]G?]d@MDUHDX?J[IQMDONWCII?WQTEVKLQDKNCTQEMDENs@XKGCg@FM_@WR]G[?uAQUDt@ONAd@IRK@KOS?A?EXSXMIC?EIO^CQUDMUOCOXA@ANW\\Iy@OU?OSSMBEKGDMTET[IHq@Nc@T]KMK?QROISDIU?Un@QAOQMWXc@D?YGQPi@I[IHE^YJGj@MLAJQ@Oe@WB[KKYABAPHZQFSCO[ED^~@J\\NNBTVd@b@bABTSECYSOUi@IAGS[KUUMo@GH@^WO[e@AVDXFBd@`AHBJVNt@QKIYYQOYOKCJO?EYQAA^Tf@@j@Gn@M[K??SIu@GEIa@[EIDCf@e@GGTIICk@\\SHK?_ALGJVZNTE?k@I@CQBYEYINMGEY_@E@i@EUKUNYBu@MQa@?Pj@GXMJ@^Kn@L^C\\QOIB@XKHKSGa@MMMe@QUQk@G[JMIUFWAOHSUQC\\OL]MQa@ORFd@HLAl@QCGRP\\ARKZ@NST@ZWR@J`@^PA@NO@QN[E_@HMl@Gq@Ae@Lk@CMDa@Ci@Lk@BWOc@SUCQBSA[OYOBIIc@?ETM?U[K@@bAKDITHv@F?VRRXXDDNCPKIe@?Ah@q@w@CMUUDUQ[A_@OSE[OAKWKa@c@k@CSYOc@?@TE\\RT?PRTAXFJTBJZHH\\E?f@FVY?ESIDI^b@JXh@@NTIA[FOLDBb@DZON@ZXRFSNHDZFD\\?CTYEg@?INMBQMWFBZTlAPl@Fd@KP[}AI]GAQNFf@Rz@F^Ld@Hh@Xj@OBS_@Oo@Ie@ICIQIc@Yg@Me@HSHLLOHe@@s@IASTM@KLNv@EHOa@Is@A[SRK`@Ft@Cj@]aBMIQHI^?`@Xr@m@@G[MJQAUJQXEZQZBt@`@TRn@NNC`@YBMRALHRLJZ?JT?\\RJVYLe@Cq@RKPs@NAHJ@TGRM@DX\\C?XMBId@FTDj@HNBv@DNPLFNp@TTCJe@@`@\\^JnALHO`@SAAWI]IPMAIMJ_@EUKASVSEMHGU]MKg@KI[AKVGEB[VEDOAe@QOWTI^QEM]O?WTAW@_@ISI?OTM?EWI?ET?VRX\\ZJEFOHNG^?d@GDIa@MYm@OIHCTQ[?c@MGEPKBQ^?l@N\\ENWo@?yAGEITIh@@n@HZq@[AUHG@UIGA]HKGe@YC]BEKu@Ca@`@ERDJ[RIYHk@k@u@UDKLOSOCUFIOIDIn@k@YI?NPJ^HLP?F^M?BZMPXLBJZBBi@ZKRYD^WCERDNSJFpAFRKFEb@GTB`@OX?^BXTNDDFZHI@OPBPt@@?RJTk@HDREP~@Vd@HVD\\TIHJPh@Fd@HCLRTMHQ@YNURO\\e@La@Fi@MeABeAC]GMHQJp@Fj@Ad@Ld@@^CXIJIZ?XIT]r@Qf@AROTKn@ICA?GRa@MSDILId@Pt@JNJ`@VBBTNCZNJQVLDGND@NPP@a@HYPn@OJMb@JJEZKT?f@FLJENLH@NZFBR^RKDYCUPUDYO??a@HIUi@Fe@EYKUSQEODYJEDIDEHa@COLo@EYQe@FWDDPODZD^R?HX?OP?@MPWFUIGEWIHS_@M?OZIEEe@GE[m@MGCULSBNZNBJR?NLHIEu@Ko@ZJCnALH@NLONDPYEa@F[Ic@Fa@Hd@CPN^T?PDCTRBLKH@@WLJPIA[Hi@GW@YIYBeA\\Q@NSVAVJZZHBSHELo@IYDUHl@@r@THRWF_@JYAOJU?SOMM?KWMAOi@@OP?RG?Mn@X?XLNDu@J_@McA@KG_A?UH_@T[REDO@e@Li@BVI|@Sb@Id@DTDtAIf@HLP]TRRCJIFQJ`@Q\\O@IL@PJR@PPRNIHDJIDHPBTIV@TMBi@LNHd@LC^D@REZODa@EERKNKOO@ONGh@IZ@THNKX]@GLZZ@j@HBFPARLN@NN?E]LWDl@RKBw@J?B`@MB@p@]TCHJv@B[XAVMJOKk@FKBd@N?Hf@LWFTQNSMATKGa@Za@Hc@TO^?VTx@DTJR?`@DJRNLQAc@FKLDKb@FJE`@Dr@Q?GZHDPIB_@JH?XQXEN@Vc@TGD?F?ZFPEVDV?b@MZNJBRCP?b@F^Bp@J`@H?FNJBFPTG?]He@FKJJJXLUTT?ZHUHXRP@[E[LIDZXGJ@T?C[FSDg@FENs@E_@GKB[NJ?TNXNUNe@AYJ[JJD[OUGk@IUEVILIODe@Ie@HO?YYOE_@TDDUPK@J`@DLNJGBS_@UK_@SQGS@YEQS?IOKHQf@SGS?Hy@FXHDNYBQCu@H?D^XDZKIy@Co@HEBn@DH@`@PRHSIu@@QLLCbAKf@Bx@N`@EXPEP^HMZHDKPO@IGQFi@?CG[JONNFQ`@DHo@CKOC?UHIHLFe@?G?e@h@[@DD[SUEDYKWDSCSLEe@ISSAGMJQHDHX\\?HOF]@k@KKUIOYMGENWGOH]UYDWONQRHPMGw@UME[PEh@@NL@YKQMJOIYA]D?NW^[J]?Ct@Wn@?NYPMN?d@ETIq@BURc@PEF_@Ge@OB?YPk@CYHYRKJNINEXRJFQPOTJTEDu@^DTEG_@OKEMUWIWa@a@Q?Qa@UMUWVGZh@LHHOT@NGFTL@XNLA\\VPANNL?HJb@JNEKUGHe@Sq@a@WCS[KEGc@IBQKDOOS}@[FYj@TDHh@b@LPDh@RT\\Hb@Vl@N?Lj@GOUg@QMOK?IYKDWAMc@DQPHPPBQN@n@d@\\DJAf@T@[NM`@n@PYCk@MEEYDWHMPHJEr@Tl@HLSDb@LCb@^\\HLJN?HNRDBJb@LN?THHIf@TRXHC\\PXEHN?n@HHN^VGHEJUVARc@FLHGFLCVK?CXU`@@FPOFPRAB]@Q?CG?C_@JQVJZADOT?FPCXHh@El@JHFKJNNFNEPNBONEBJRx@I`@JBHIDBLCFKZIHQDJ?HHEBC@E@C","keiFvhDNNDe@K?IT","}kiF|rCAb@T@H[JSPBHi@EQKNAo@_@p@Id@GH","qniF|hDBTHOJAKo@IOCv@?B","euiFfeDNHLUN?DHZE^JP^VHFOI]KHO_@_@U[NIKDUa@YWKMU]MSLHp@RXVPFZ","euiFfeD[U]a@MDSYMAOJQKAd@L?TFHA?`@MT?VRO@VJ?A}@HCXDJT?X\\^BVPBBIFKFXF@TOF_@JEBTCXVTHRLp@LIFU?Uc@w@EGSBC_@]USDMUOHOS","_yiFrjDESMKEYSb@H`@PBPO","oziFpgDJTH_AEKMTA^","}ziFrjDIKC`@LU","k{iFb~CLhA?TJNJET@\\I@NLNTEIe@Sa@_@CKBa@M?USO","o|iFphD[YKHId@NPRLPe@CO","s~iF~aG?b@Fd@F?D\\JXH^RDNIJRJaAF]d@WBm@F[R?BWKIMc@U?SEEOMBOECOM?UZQDOj@FBGd@GD","i~iFn`CJXRD?o@P?LUPKFS@_@KGODC[KJGI]X?h@B`@CXI@","{_jFteDD`@DEDYQA","objF`fCT^L@Vu@HNEh@GNOBETFJKh@Cp@IXN@Ad@HLRDBUN?RON_AVYNKNNR@@\\\\@LO`@BBOR_@Jk@Da@Je@JOAYQNSYW?IE[DGKK?SOIe@W?QKQF]GKMKLFPVH?^HDDTMPMFGYKDQKKJ[BMZ","gejFjeEDP\\t@TUF[Ea@Dy@MUWNO^E?Ej@","uejFxbEQD@ZH?FOAQ","krjFf`ENVDQKMIF","gsjFxxDAVBUAA","ytjF~xDT?J[K]J[FBDVIDN\\L]JNLWIUWDBe@Oc@QKA[I?B^ALUX?j@LFAPKEKSML?PHTPN?B","yujFdlD@l@\\WHd@HH^[G_@ICCQMB[]ORCP","wujFlsEDj@IBMTHXITBJRHVCROTU@INGKSIa@MOHOP@?b@PIF[Ek@WYB[?]IQK?ATDJKXMUEYSEIN?XEJ@TVARV_@DKR@T","yujFjmBANJTHUSO","exjFlhDBj@LBJIDUISOEIH","eyjFb_C?`@Rd@HHJKNDLEIi@SHi@e@","stjFr_C?_@HB?]FKFYK]B]GQCYSQS?Ce@[]C[SEEUKMKBSi@IES[Q_AS\\NZ?`@LRCT@d@E^K@?XJXLGRRD`@DbALZ@PHNXXLDVW?\\DFHl@ZAD[?C","{yjFjwDJAZc@LAHMHFZm@HQCuA@kAOY?a@SUEUe@Ia@N?d@]~@HVQTARSP?b@Tp@LBAP@BRKBd@HUBVILAZ@@","i~jFtpDGNFZFSGW","i_kFp|A?@?F@?AI","k_kFb}AC?BB?C","i_kFr|AGw@MEJv@HD","q`kFv{AGR@PRZFE@_@EQQI","k_kFr}AQNKEQH?ZL^HDCe@HBFf@Vr@PV@KM_@OQCs@@o@AE","kbkFxtDDNPBG_@OJ","{akFpnCUBEXXNDGCe@","qfkFljEN@@[KBET","oekFhnCQVNTH?HQDo@WR","uikF`~CFFRa@SCG\\","ikkF~tCNBLKGUIDKV","wkkFbxCJf@Pe@E[QZEA","oskFnaBBD?EC?","_xkFtpDISKt@FXLOG_@FK","kxkFpzB?j@HDHGJ@BNNLJ\\JAHu@a@HAc@LQ?e@IIIDC[OESNFd@KP","itkFrgBEWRGNMNo@Fi@LBIk@SC?OGDMHIOB[g@e@I?[YKh@_@ECTHNFj@JC^ZBd@EHMQGPBZEVSOKDY?KVQH@t@En@IHCZ?HPj@TTHd@Kd@CZMBDXA\\M\\VNNd@XEJD@]PKLDNg@TOFM\\[L?^UPq@PGB[KO?a@GI?a@EMc@t@ONGr@KVO?IUH[@o@IEBy@HAJUB]IADMAE","__lFdzBFJLYRQHSIOQRAPKHIR","}_lFjpB?TFZRADe@L]R?Cw@OICUM`@ILIp@IH","}elFh~BFXORBTMN?LPa@Nh@GZID?^Qh@@Tn@CAXS?KNET@d@CP@THT?\\HJ\\OPTJGT\\HGT?BMVADPTWJ@HNREPZRAVJT?@PRFX?TITHLWBk@HEJ[ROZEBPWNa@b@IN?l@BRS@s@AYDMI[HT`@HXRDH\\RJ?Xz@CDNEXVOP?BTLHHM\\HJUREVYHd@^BNPR[AYUEGORITLROZd@VOH?LOb@SBh@L?@YEQJMp@Ah@[Hs@LDLGC{@HMI[?SRa@Ky@MEG^GJD\\[ZISIRAe@Hu@N^HYMg@f@yAAQQ_@Ec@K]FGLl@NYQOASKMEPKJQQI@OQIJIUO?ILS_@KJH`@Oh@SQKDCZ[BAYJS?UGQHYE[G?KJW?IHEOGk@KCWTMWM@?n@[?GH@TLTg@J?dAIN@^SJIt@S_@Jw@\\YCYOKDQE]WOSQODUAIFCx@IDITMCILEXOGKLS@Ub@_@NVm@Ne@JQN@PMJY?SLUBUAe@@[RE?SKQA_@QDF^GT_@BKMCQWDONUHU@OQ]TQCMNOKQ`@EOHa@LMGQUd@?PMVUFC_@WECRJTKPQK?ZA?","iglF~cBNZHKSSEB","_ilFdaB?N[??TJDJQTB@TN@JOAOSUILOO?@","{qlFppBZZ@NEZBRPDF_@Xj@BNL^RBFXNYAIN_@JI\\EZRRD?RJ@HKXI?TVAEd@JLPFDNT_@LD^UNHAVMHKjAHDNYVEDUVBPMJ\\DENZR?C_@@[ZDHSEg@FS@e@Sg@]SMg@@c@TBJeA?UHSB_@GQRk@_@e@?WG[_@LEVND_@n@Bj@SRCOOEWUGDQOIUEo@SEGYOQAYIKo@SKLITFl@FRIZ@LGf@K?@e@IOAkADKC[FOAc@GAK\\YBEd@IO[RKZMJIWVcAIUL[Hi@?Q_@EEJKKUCCXI?MNBj@WPKWCm@?}@IUIDCTDPEVWJGc@A?A~@SXLJB^MR?THPU^MEENHPD^TJHARNNIn@x@NFCXEJc@_@S?]KCHQKQJIEOTC^HT?VNVJCTONX@TJ@@B","kyvEp}RSTGRHNT@L[COMO","y}vEpwTJZI^HZNJJOBm@IG?k@MQS^","mowEjsTBZD^LY@UGUQH","sgxEv}V@\\Rn@HMI_@IK?UK@","{ixElmUAH`@\\PBB[SMI?SKCH","gjxEbxVHNDII[ET","mjxEhxVDEEB?@","{mxE|lXAEQ@HRDKBC","oqxEfjUYj@OG]cAQGKd@QJPNHNC`@PLD_@`@@HBAXFFL?TXHBJVNRJ?RPFRR?LMBm@HJl@X@IXIA_@OGICAUQOCa@[WS\\K@OEMe@AXQ@OUMHQICU","s~xE~cSHXl@D^KX]GUKOOAMN_A`@","smyEzfS?TPDJXND@RJZTRDPJA@O\\MTDLG@ULOTMVUJe@PW`@]@QNe@OYAKFe@P]JGJJ?TJJf@HPAHDPELFAWb@DAIS?EK?UJ?VOR@RTPOL?FMR@JEBO]o@C[FOJBRSFU@_@JAFM?UNUTBJGHFHSP?J[PNRs@JGJ]?OM]II@UOMAQa@JY^AJMXGXO@KKKY?g@Oc@KGWFo@h@UCSBAHYFMNQAQHWCKDa@BUEOL@b@Jh@LPCZIL[Di@E?TITDd@E^SDASUg@MIUNA`@GRMPQbA[j@]z@Y`@GV]ZDTEZIN?T","{jyEbvWJt@LBBOWi@E?","iqxElmXNN@TJCNe@RAHOPK?_@JOAs@MUOOG]OWCUKUIe@IKOc@_@q@MEQ_@m@q@CMSO[]USWCMGI@MWSGKQYOUCMQIiA@q@Ja@G]Be@Jg@GSAg@?OJIJYHEPJFXRB?NLz@HT@Zb@j@@LGVPHF^AHLVJEPDFXHI^?LNB_@DAC[GO@e@Pi@f@y@h@k@d@Wz@]RANILPDVLLGn@Fb@CVLLDTVH@JRNHNJEJZP?BPHGXITPHGFFLANHHPDIB_@?}@D@PGGYPk@C_@B{@GYSKIMGk@?YIEIUQDSQGYi@_@AKSJILKIEc@GK?o@Te@LN@USw@G??]FOAUJUIa@KUICA[BEKe@KMCWMYSk@L@HQ?YKAUOIDSXSYBULC?_@IQQHKWOWEUBMSg@KC?RIDKYOHKKEJHPARQEK@INUDMQG@KQQIYDEd@O\\]P_@KQ?SIO?GROJU^EZIRMd@UDGTc@@ORUDQTWDYKM?KHQ?IM_@FKJICGN[AQNM?KNS@SH?NKXODWCg@UIBOMs@GGD]IMPBl@LP@TAbARLJd@AhAL`@NNLBHX?PRX@Hd@v@HXZtADMNHJ^HDATHx@@p@FJ^[ZHL^PJ\\CV^J?LORB@TEZa@b@Q?UOI@UQQCKDS?SEg@k@[OMDG^P^HXLFD^JHFp@NRFXXZRNB~@H\\I^IIGVDTLFLhARDRENHHGHRFKHNVOFJHKNDRCPr@Pd@b@ZNc@Dq@EKVU`@CJJJHRZVF@?Lc@DH?^J`@d@r@b@ZFJ^HLo@HABNNLLB?NR^BD","ioyEfhULWFYGQa@]OOUGATId@@VRRP?\\P","awyEdoWHFCOEF","gwyEvmWGFBVLOIO","cyyExmWEHAn@JC@q@CEA@","ayyEvmWB]PGTVHKBYMOE]a@IMO?YGw@EGQH@\\G`@L^G^Bl@DH?r@LJFYAWHD@?","uhzEpuTBXTVND?QIUYSEB","o{yEplWFIA_@@o@QGEYJKLFROMm@KYQO@KSYKNSYMZM?K\\Ge@KYCTOIIQAUKYI?QOKDIEGQI@COI?OUMAIW[G[c@?RGJGISb@@TLTJ?AXRt@JJFIRBJOLNDZERID?TGZZTJb@BVH?B\\PPHTRTNEJN?_@FIH^TGJFHd@TAPIPt@HCL^HHBYMe@Wq@?YJATd@","usyExlVIOP[D[C[RIBSKK@[Pk@@m@COBQYOEKQOHMCQKKHYIKILMMNMP[JXB]MGIi@OUi@c@HMLJJ?HKRl@ENJX?PRRENNTHj@HHANNTM^Df@LXBb@GT?PP^@XFTIZDj@KLRf@F^E^TZBTl@~@XX@FXFNL\\b@HBH\\RHNNLCRFNITJ@HTSJU`@F^JXSVFNIRS\\GLSJEL[FCJa@?_@Hc@JOF[Ik@@{@HMBQG[@]JECk@GOWYGHUKQSMDOMQ]KBQZMDi@We@Ik@UIYIq@Dk@NSSYQASTSCMIIUBg@R?EYOJe@GM?OIMSIBS[IEKWYQEBWS?R]OOYOIs@OIDCOJQKKEOWUi@YM?WOISKGc@OAk@@?QY[[Q??MOGW_@EFa@U}@u@KQSKMWIAEOa@a@WMWk@Q?IKASIIc@NGLIC?UQC?R]?]TQXETD`@HXPI@n@JT?TNNHIHHDTRDAd@@LPJ@XTJLN@NQDAXJVRBN`@@RTPR?BN?h@PRNj@Df@FDF\\JTHHFV@\\HJRd@PCBTPVF`@Tj@@NJRBTJPPLDPb@HLCHh@THDNZd@VPHNXJ@ADOLPRL@Y?C","ykzE`rTBb@XZTD@HTZB[]_@G?SUGOMI","ukzEftT_@e@CKSUCJVd@XZHE","{ozExeUGNNF?f@JLBn@Hd@NRV?L^@V^TDONAHK?i@DS?k@Gg@B]EUGAWm@HKCUIQSD_@^K@YKEVQL","mszEz{TJHBNZJ\\DJK?KZ@LEMa@IMKe@U??L[Ic@NAPKLFP","urzEftUUOERXf@TVScA","ktzEzhUHt@JHHG?US]KC","mtzEhfUDNd@ZLELZCR`@JB[QG?MVCN_@B_@OHMX]Mg@D_@G","}tzEviUHTHOCKOD","wtzEpqU@VLLA[MI","uuzExmUIAGNHp@FTRXLM?KMe@C_@OO","exzEd|TL^XNDPHGDYEUSOKCWH","yxzEz_Ub@p@l@JLKXHPN^NDCZRFc@LDPQ?O^@TGPSHe@GOc@ESZGUGLYMMDWQS?MOg@UMDANM?GT[RKMKBCNON","y{zE`bU?LLHBa@QH","myzExxWBRHYIKCP","u~zExbUBXDNPJDUMAS]","szzE|zW?WIKe@OIB?VEF?j@HJLIFNJXNOIUL[?E","a_{ElzTH@RXMd@I@C^LX?JRd@b@b@HEDVDBNSA[H[DEHJV?j@KDOJI@SWe@YAAe@GMIH_@EGZGHMKO_AKBa@Ye@KIDTZAN?B","oa{ErzWCJPNBOQK","k`{ErbXFYLANTRd@BZH?JOBq@HSEMKIQc@[a@UUMEOY]?UOIXJJFdAHJRz@JNPE","mf{EzsVg@{@Oi@C[JY?WISDKLID{@?CDKFXDf@MLId@?THDPUHCC[L@Zl@NNBZHz@DDBTJz@?\\JPFt@P?DTATJNCRAd@LfAJR?ZD`@Q~@@ZPEHDAXDNE`@ML?TH?FTW^KZGZ?RFj@T?DOVIMQLOJPVGHSFHMZChAFVS\\K_@GH[LKAAZGRNPOBMJ?d@BTA?D^GN?BEZENBZARFTBN@Pl@h@TI?PLAHHZM@NDWFGNHDI?a@IYj@LFSf@BF]Me@?QLCHLXG?AFY?g@JYKSK?Fk@DOKODq@VJEa@a@_@a@EMMEe@D]FCDYIUMECYBWIM?QFK?e@NSMYCUH_@FEBWGWHQKYQAIYIKAe@DSEk@@SEk@OWFSR[He@?o@EUIOCUKSG[Wa@Me@Yi@OKDs@DODa@Ay@GWA]Ya@G?OSWa@GEIYMKEc@OA?c@Ia@H_@CU@_@FO\\EJd@RN?JVNFXLJDd@FHLYJ]?MHaBDC?u@GMIJGi@EQ?YMUMe@A_@G?E[IIO{@M[Ee@QSKa@KIW{@IKAWKGQYUKUSKDE\\?j@FNAf@Hn@Zx@HVDl@Jj@@l@KHCe@So@?KSUGOM?YOCQB_@GEIc@]?MNA^EHOMDOIWHIFYSEA[JULNFIFXLIVNNEN_@Eu@FUASFOQw@[MILGSMEQQUGCGMPFd@WBH`@a@EWNE`@S]PIHSAQLMHXFUASLUIGw@Yg@BYTAPFHVEDVGHIb@?d@QIIOENS^IDGTFJWl@_@FI\\AVHDBr@O`@Ib@Ad@WFCLO@S^IXKNMDGTFx@MZBNb@?Ep@QHKXIDIz@BXAbA?~@Ln@BPIN?\\KFIVJJHd@SXUT[@_@HIPWAODQXANKPSAIMGLO@CZO\\CPQ\\a@LQXIBU^Ol@ATHFK\\IHO^I[OSYHMXEp@BXOj@C~@MPOAMJEh@T@Aj@GTJNN^@TLBBdAITBXZTRVKd@@RLZFIr@BDIVEPI@ONEJUVaAPDIP@LMHUZGZSXK`@QZBRKTCZDLL@L\\DZIHEf@DZHVETJNOf@@HVOLDLQPG^BHIB_@KWGYAYDWLC?TXd@BAh@v@BZDNCXF^NPREXHRKD_@?c@D[HA?cAFULIC[BO?o@Ka@?k@K_AX[Be@BSLWHc@PODUOEDUR?Lu@@[FYJCPe@H?FTP\\NS?K?CAWJG@UP[Q{@EECe@?{@_@eB?q@C]OWUu@GEB]JO\\ULAZT?Nj@z@?VHl@HTLH\\`@D`@Br@BDCp@Gb@AjA@VFRN?PJB\\HGZBFXJCTXLELJPZBTJL?NLd@L\\F?Rd@LVVLLGHJ`@YX]FcAC[]gAEc@BUAq@EOHUE_AQc@Ag@[c@QA?YLYLR?_@GEC?","el{ElnTVPFLAPLBLv@KLJf@LHG^?ZFRLPXI?d@TA?TFNLFXGGi@?[LKDc@NXHEMe@QWIAEOYOAQKSIDa@u@KAGUOS?QOCMD?QKGI\\","um{EbwWGTJLRSWO","}n{Ez_WH^?PLHDSOa@ME","{o{E|mWHJNIFUGKCUUX?Z","yq{EfxVHVLRDKBo@CUISQZA\\","yp{E~gX?PNN?WOI","eu{EhxTFZNR@SIWOC","eu{EbqWDT?ZJDJRLGTUCk@C_@VEDQYIE[c@m@EA?f@DXUd@@b@","qu{EdiW?TRCDTM^BTLBDPb@^THHU?UHe@XMO]FYMECi@BU`@IFe@U_@D{@B}@WYIk@UNHNQNK@?RHJ]ZCRRJKz@OHKPBRIHOp@EX","au{EpaXTVL?T\\DEI_@K@S[GCML","cz{ExbTDb@Rf@NEEo@DKQIMUIT","c}{EneTD`@JNRd@@n@SHENNHPMHXEJRRHTb@j@RNHTHHRf@NFCVTNNb@?JHh@HPJt@HEf@TLIPD^|@NTHME[So@GGKm@KWGYg@o@M_@EQM_@Ga@i@u@OGWUIW_@s@o@w@I]_@m@MCWU","ka|Ep`TADJd@HJLDXUDO_@a@WIIR","at{EnrYIDEQMGKBWc@MFIVE\\K?OOOUQ{AB_@N_@Uu@FK?SOKPODOYc@[?SRDPG^MR[PCXXBHJHj@NDJXAZDd@Wb@ENBd@H@Eb@JNLj@JDA`@BRT?LNJd@@h@CLOBGRF\\CLQ@E^HLFd@CTID?t@BTP?JJDt@FN?Rd@PHTRBAURSTLF]RTHKDJVENYFANNBNJJZIA_@KEM[?UHy@HBDOTI?KLEFi@CKHYMa@Eo@SHO?SMOLWCCNOE]y@EAY_@I_ADu@@w@A_@He@","c~{E~eYDTJH?d@FNHYEa@KS?WICGT","ce|ExrVJIP@JQFY[?KNIb@","kb|EnpXMKBSSBGSBKYIYHESJEXm@U_@SOWOe@k@QIAISKISGDi@k@IBKOMCQHAQYFAd@KTHd@DH?TED@XJN@TL?Hh@JPETD^L?NTHb@FEHJFNEJJZAL^PBRCPBTHGFNAP@??HZTATBXNPJDPMTTBJAZFDJ\\`@NRNBl@TKJPDl@EPKDBXRHDJTX@`@HXN?@c@TQRCDWGIAUMDOKa@CIa@Co@@UHc@NADNLOCUSYi@IMQLIJSDHVEIUA[KSI{@ICAQHSEe@OBOYHW?O_@OAU?C","kn|EldX?JNH?UO?","un|EleX@F@GC?"],"sat":{"x0":-345,"y0":-425,"w":617,"h":837,"kmPerPx":0.205,"year":2025,"sea":"#2a4975","thumb":"data:image/jpeg;base64,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"}};
+const PLACES = [{"n":"Edinburgh Castle","k":"Castle","t":1,"lat":55.9486,"lon":-3.1999,"ca":"City of Edinburgh","f":"Built on the plug of an extinct volcano. The One o'Clock Gun has been fired from its ramparts since 1861."},{"n":"Glasgow","k":"City","t":1,"lat":55.8609,"lon":-4.2514,"r":3,"ca":"Glasgow City","f":"Scotland's largest city. Its name is usually taken to mean 'dear green place'."},{"n":"Aberdeen","k":"City","t":1,"lat":57.1497,"lon":-2.0943,"r":2,"ca":"Aberdeen City","f":"The Granite City, built from the silver-grey stone of Rubislaw Quarry, and the base of the North Sea oil industry."},{"n":"Dundee","k":"City","t":1,"lat":56.462,"lon":-2.9707,"r":2,"ca":"Dundee City","f":"The city of jute, jam and journalism. Captain Scott's ship RRS Discovery was built here and is berthed on the waterfront."},{"n":"Inverness","k":"City","t":1,"lat":57.4778,"lon":-4.2247,"r":2,"ca":"Highland","f":"The capital of the Highlands, where the River Ness and the Great Glen meet the Moray Firth."},{"n":"Stirling Castle","k":"Castle","t":1,"lat":56.1238,"lon":-3.9479,"ca":"Stirling","f":"It guards the old lowest crossing of the Forth. Mary, Queen of Scots was crowned here in 1543, aged nine months."},{"n":"Perth","k":"City","t":1,"lat":56.3959,"lon":-3.4308,"r":1,"ca":"Perth and Kinross","f":"A former capital of Scotland on the Tay. It won back official city status in 2012."},{"n":"St Andrews","k":"Town","t":1,"lat":56.3398,"lon":-2.7967,"ca":"Fife","f":"The home of golf, and of Scotland's oldest university, founded in 1413."},{"n":"Fort William","k":"Town","t":1,"lat":56.8198,"lon":-5.1052,"ca":"Highland","f":"It sits on Loch Linnhe at the foot of Ben Nevis, and marks the northern end of the West Highland Way."},{"n":"Ben Nevis","k":"Mountain","t":1,"lat":56.7969,"lon":-5.0036,"ca":"Highland","f":"The highest mountain in the British Isles at 1,345 metres. A weather observatory was staffed on the summit from 1883 to 1904."},{"n":"John o' Groats","k":"Village","t":1,"lat":58.6439,"lon":-3.07,"ca":"Highland","f":"The traditional northern end of the 874-mile journey from Land's End. The true northernmost point of the mainland is Dunnet Head, a little to the west."},{"n":"Oban","k":"Town","t":1,"lat":56.4152,"lon":-5.4716,"ca":"Argyll and Bute","f":"The gateway to the isles, with ferries to Mull, Coll, Tiree and Barra. McCaig's Tower stands above the bay."},{"n":"Portree","k":"Town","t":1,"lat":57.4125,"lon":-6.196,"ca":"Highland","f":"The main town on Skye, with a harbour ringed by painted houses."},{"n":"Stornoway","k":"Town","t":1,"lat":58.209,"lon":-6.387,"ca":"Eilean Siar","f":"The largest town in the Outer Hebrides, on the east coast of Lewis."},{"n":"Lerwick","k":"Town","t":1,"lat":60.1548,"lon":-1.145,"ca":"Shetland Islands","f":"Britain's most northerly town. Each January it holds Up Helly Aa, a fire festival that ends with a burning galley."},{"n":"Kirkwall","k":"Town","t":1,"lat":58.9814,"lon":-2.96,"ca":"Orkney Islands","f":"Orkney's capital. St Magnus Cathedral was begun in 1137, when the islands were ruled by Norse earls."},{"n":"Dumfries","k":"Town","t":1,"lat":55.07,"lon":-3.605,"ca":"Dumfries and Galloway","f":"Known as the Queen of the South. Robert Burns spent his last years here and is buried in St Michael's kirkyard."},{"n":"Ayr","k":"Town","t":1,"lat":55.4586,"lon":-4.6292,"ca":"South Ayrshire","f":"A seaside town on the Firth of Clyde, with a racecourse that hosts the Scottish Grand National."},{"n":"Aviemore","k":"Town","t":1,"lat":57.1953,"lon":-3.826,"ca":"Highland","f":"A Speyside resort town below the Cairngorms, and the base for much of Scotland's skiing."},{"n":"Pitlochry","k":"Town","t":1,"lat":56.7044,"lon":-3.7297,"ca":"Perth and Kinross","f":"A Victorian resort town on the River Tummel. Its dam has a fish ladder that lets salmon climb past the hydro station."},{"n":"Loch Ness","k":"Loch","t":1,"lat":57.28,"lon":-4.505,"r":10,"ca":"Highland","f":"It holds more water than all the lakes of England and Wales put together."},{"n":"Gretna Green","k":"Village","t":1,"lat":55.002,"lon":-3.065,"ca":"Dumfries and Galloway","f":"Just over the border. It became famous for runaway weddings after a 1754 law made English couples under 21 get their parents' consent."},{"n":"Forth Bridge","k":"Bridge","t":1,"lat":56.0006,"lon":-3.3886,"ca":"City of Edinburgh / Fife","f":"The red cantilever railway bridge opened in 1890 and became a World Heritage Site in 2015."},{"n":"Falkirk Wheel","k":"Landmark","t":1,"lat":56.0003,"lon":-3.8417,"ca":"Falkirk","f":"The world's only rotating boat lift. Since 2002 it has joined the Forth & Clyde Canal to the Union Canal, 24 metres above."},{"n":"Glencoe","k":"Village","t":1,"lat":56.682,"lon":-5.102,"ca":"Highland","f":"It lies at the foot of the glen where some 38 MacDonalds were killed in February 1692 by soldiers they had been hosting."},{"n":"Loch Lomond","k":"Loch","t":1,"lat":56.13,"lon":-4.62,"r":10,"ca":"Stirling / Argyll and Bute / West Dunbartonshire","f":"The largest lake in Great Britain by surface area. The Highland Boundary Fault runs across its islands."},{"n":"Ullapool","k":"Town","t":1,"lat":57.8954,"lon":-5.1613,"ca":"Highland","f":"Laid out in 1788 as a herring port by the British Fisheries Society. The Stornoway ferry sails from here."},{"n":"Thurso","k":"Town","t":1,"lat":58.5936,"lon":-3.5221,"ca":"Highland","f":"The most northerly town on the British mainland, and a well-known cold-water surfing spot."},{"n":"Paisley","k":"Town","t":1,"lat":55.8456,"lon":-4.4239,"ca":"Renfrewshire","f":"Scotland's largest town. Its weavers gave their name to the teardrop Paisley pattern."},{"n":"Kilmarnock","k":"Town","t":1,"lat":55.6117,"lon":-4.4958,"ca":"East Ayrshire","f":"Burns's first book of poems was printed here in 1786, and Johnnie Walker began as a grocer's shop in the town."},{"n":"Dunfermline","k":"City","t":1,"lat":56.0717,"lon":-3.4522,"ca":"Fife","f":"A medieval royal capital where Robert the Bruce is buried. Andrew Carnegie was born here. It became a city in 2022."},{"n":"Elgin","k":"Town","t":1,"lat":57.6495,"lon":-3.3185,"ca":"Moray","f":"Its ruined cathedral, the Lantern of the North, was burned in 1390 by the Wolf of Badenoch."},{"n":"Stranraer","k":"Town","t":1,"lat":54.903,"lon":-5.027,"ca":"Dumfries and Galloway","f":"It stands at the head of Loch Ryan. The Northern Ireland ferries sailed from here until they moved up the loch to Cairnryan in 2011."},{"n":"Peterhead","k":"Town","t":1,"lat":57.505,"lon":-1.784,"ca":"Aberdeenshire","f":"The most easterly town on the Scottish mainland, and one of Europe's busiest fishing ports."},{"n":"Balmoral Castle","k":"Castle","t":1,"lat":57.0407,"lon":-3.23,"ca":"Aberdeenshire","f":"Prince Albert bought it for Queen Victoria in 1852 and it has been a royal summer home ever since. Queen Elizabeth II died here in 2022."},{"n":"Greenock","k":"Town","t":1,"lat":55.95,"lon":-4.765,"ca":"Inverclyde","f":"A Clyde shipbuilding port, and the birthplace of James Watt in 1736."},{"n":"Wick","k":"Town","t":1,"lat":58.439,"lon":-3.093,"ca":"Highland","f":"Once Europe's busiest herring port. Ebenezer Place here is listed as the world's shortest street, at just over two metres."},{"n":"Hawick","k":"Town","t":1,"lat":55.427,"lon":-2.787,"ca":"Scottish Borders","f":"The largest of the Borders textile towns, known for cashmere, rugby and its Common Riding."},{"n":"Tobermory","k":"Town","t":1,"lat":56.623,"lon":-6.068,"ca":"Argyll and Bute","f":"The main town on Mull, founded as a fishing port in 1788. Its painted waterfront was the setting for the children's TV show Balamory."},{"n":"Glenfinnan Viaduct","k":"Landmark","t":2,"lat":56.8762,"lon":-5.4317,"ca":"Highland","f":"A 21-arch concrete railway viaduct that opened in 1901. Close by, Bonnie Prince Charlie raised his standard in 1745."},{"n":"Eilean Donan Castle","k":"Castle","t":2,"lat":57.2742,"lon":-5.5161,"ca":"Highland","f":"It stands where three sea lochs meet. Blown up by the Royal Navy in 1719, it lay in ruins until it was rebuilt between 1912 and 1932."},{"n":"Culloden Battlefield","k":"Battlefield","t":2,"lat":57.477,"lon":-4.095,"ca":"Highland","f":"The last pitched battle fought on British soil, on 16 April 1746. The Jacobite army was broken in under an hour."},{"n":"Bannockburn","k":"Battlefield","t":2,"lat":56.093,"lon":-3.937,"ca":"Stirling","f":"Robert the Bruce defeated Edward II's much larger army here over two days in June 1314."},{"n":"Callanish Stones","k":"Prehistoric site","t":2,"lat":58.1975,"lon":-6.745,"ca":"Eilean Siar","f":"A cross-shaped setting of standing stones raised about 5,000 years ago, before the main circle at Stonehenge."},{"n":"Skara Brae","k":"Prehistoric site","t":2,"lat":59.0487,"lon":-3.3417,"ca":"Orkney Islands","f":"A Neolithic village older than the pyramids. It came to light when a storm stripped the dunes in 1850."},{"n":"Iona Abbey","k":"Abbey","t":2,"lat":56.335,"lon":-6.392,"ca":"Argyll and Bute","f":"St Columba landed from Ireland in 563 and founded a monastery here. The Book of Kells was probably begun on the island."},{"n":"Cape Wrath","k":"Headland","t":2,"lat":58.6255,"lon":-4.999,"ca":"Highland","f":"The north-west corner of the mainland. The name comes from the Norse for 'turning point', where longships turned for home."},{"n":"Mull of Kintyre","k":"Headland","t":2,"lat":55.31,"lon":-5.803,"ca":"Argyll and Bute","f":"The tip of the Kintyre peninsula. The coast of Northern Ireland is only about 12 miles away across the North Channel."},{"n":"Mull of Galloway","k":"Headland","t":2,"lat":54.635,"lon":-4.857,"ca":"Dumfries and Galloway","f":"Scotland's most southerly point. It is further south than Carlisle and Durham."},{"n":"Dunnottar Castle","k":"Castle","t":2,"lat":56.946,"lon":-2.197,"ca":"Aberdeenshire","f":"A clifftop fortress. The Scottish crown jewels were hidden here from Cromwell's army in 1651 and smuggled out during the siege."},{"n":"Melrose Abbey","k":"Abbey","t":2,"lat":55.599,"lon":-2.718,"ca":"Scottish Borders","f":"Founded by Cistercian monks in 1136. A casket believed to hold Robert the Bruce's heart is buried in the grounds."},{"n":"Glamis Castle","k":"Castle","t":2,"lat":56.62,"lon":-3.002,"ca":"Angus","f":"Childhood home of the Queen Mother and birthplace of Princess Margaret. Shakespeare made Macbeth its thane."},{"n":"Scone Palace","k":"Landmark","t":2,"lat":56.423,"lon":-3.437,"ca":"Perth and Kinross","f":"The crowning place of Scottish kings, on the Stone of Destiny. Charles II was the last, in 1651."},{"n":"Inveraray","k":"Town","t":2,"lat":56.231,"lon":-5.074,"ca":"Argyll and Bute","f":"A planned Georgian town on Loch Fyne, built by the Dukes of Argyll beside their castle."},{"n":"Braemar","k":"Village","t":2,"lat":57.006,"lon":-3.397,"ca":"Aberdeenshire","f":"Host of the Braemar Gathering each September. It shares the UK's lowest recorded temperature, −27.2°C."},{"n":"Brodick","k":"Village","t":2,"lat":55.576,"lon":-5.151,"ca":"North Ayrshire","f":"The ferry port for Arran, below Goat Fell. The island is often called Scotland in miniature."},{"n":"Rothesay","k":"Town","t":2,"lat":55.837,"lon":-5.055,"ca":"Argyll and Bute","f":"The main town on Bute, long a favourite of Glaswegians going 'doon the watter'. Its castle is circular, which is rare in Scotland."},{"n":"Mallaig","k":"Village","t":2,"lat":57.006,"lon":-5.828,"ca":"Highland","f":"The end of the West Highland Line and of the Road to the Isles, with ferries to Skye and the Small Isles."},{"n":"Kyle of Lochalsh","k":"Village","t":2,"lat":57.281,"lon":-5.713,"ca":"Highland","f":"The mainland end of the Skye Bridge, which opened in 1995. Its tolls were scrapped in 2004 after years of protest."},{"n":"Dunvegan Castle","k":"Castle","t":2,"lat":57.448,"lon":-6.59,"ca":"Highland","f":"Seat of the chiefs of Clan MacLeod for some 800 years, and home of the Fairy Flag."},{"n":"Old Man of Storr","k":"Landmark","t":2,"lat":57.507,"lon":-6.175,"ca":"Highland","f":"A rock pinnacle about 50 metres high on the Trotternish ridge, left standing by an ancient landslip."},{"n":"Arbroath Abbey","k":"Abbey","t":2,"lat":56.562,"lon":-2.582,"ca":"Angus","f":"The Declaration of Arbroath, asserting Scotland's independence, was sent to the Pope from here in 1320."},{"n":"New Lanark","k":"Village","t":2,"lat":55.664,"lon":-3.783,"ca":"South Lanarkshire","f":"An 18th-century cotton mill village on the Clyde, where Robert Owen tested his ideas on workers' welfare. It is a World Heritage Site."},{"n":"Rosslyn Chapel","k":"Landmark","t":2,"lat":55.8554,"lon":-3.16,"ca":"Midlothian","f":"A chapel founded in 1446 and covered in carved stone. The Da Vinci Code made it famous all over again."},{"n":"North Berwick","k":"Town","t":2,"lat":56.058,"lon":-2.72,"ca":"East Lothian","f":"A seaside town facing the Bass Rock, which holds the world's largest colony of northern gannets."},{"n":"Jedburgh","k":"Town","t":2,"lat":55.477,"lon":-2.555,"ca":"Scottish Borders","f":"A Border town ten miles from England, with a roofless 12th-century abbey and a house where Mary, Queen of Scots stayed in 1566."},{"n":"Fraserburgh","k":"Town","t":2,"lat":57.693,"lon":-2.005,"ca":"Aberdeenshire","f":"A fishing port on the north-east corner. Kinnaird Head here was the first lighthouse built by the Northern Lighthouse Board, in 1787."},{"n":"Dufftown","k":"Town","t":2,"lat":57.445,"lon":-3.128,"ca":"Moray","f":"A Speyside whisky town. The saying goes that Rome was built on seven hills and Dufftown stands on seven stills."},{"n":"Crianlarich","k":"Village","t":2,"lat":56.39,"lon":-4.618,"ca":"Stirling","f":"A road and rail junction where the lines to Oban and Fort William part company."},{"n":"Tarbert, Harris","k":"Village","t":2,"lat":57.898,"lon":-6.803,"ca":"Eilean Siar","f":"The ferry port of Harris, on a narrow neck of land between two sea lochs. Harris Tweed takes its name from the island."},{"n":"Bowmore","k":"Village","t":2,"lat":55.757,"lon":-6.29,"ca":"Argyll and Bute","f":"The main village on Islay, with a round church built in 1767 and a distillery dating from 1779."},{"n":"Kelso","k":"Town","t":2,"lat":55.599,"lon":-2.433,"ca":"Scottish Borders","f":"A market town where the Teviot joins the Tweed, with a cobbled square and Floors Castle on its edge."},{"n":"Lochinver","k":"Village","t":2,"lat":58.148,"lon":-5.244,"ca":"Highland","f":"A fishing port in Assynt, with the sugarloaf outline of Suilven rising behind it."},{"n":"Durness","k":"Village","t":2,"lat":58.568,"lon":-4.745,"ca":"Highland","f":"The most north-westerly village on the mainland. John Lennon spent childhood holidays here."},{"n":"Dunkeld","k":"Town","t":2,"lat":56.565,"lon":-3.586,"ca":"Perth and Kinross","f":"A small cathedral town on the Tay. Birnam Wood, across the river, is the one that marches in Macbeth."},{"n":"Callander","k":"Town","t":2,"lat":56.244,"lon":-4.214,"ca":"Stirling","f":"A gateway town to the Trossachs, sitting right on the Highland Boundary Fault."},{"n":"Troon","k":"Town","t":2,"lat":55.543,"lon":-4.66,"ca":"South Ayrshire","f":"An Ayrshire coast town whose Royal Troon links regularly hosts The Open."},{"n":"Carnoustie","k":"Town","t":2,"lat":56.501,"lon":-2.709,"ca":"Angus","f":"A golf town on the Angus coast. Its championship links is counted among the toughest on the Open rota."},{"n":"Linlithgow Palace","k":"Landmark","t":2,"lat":55.979,"lon":-3.601,"ca":"West Lothian","f":"Birthplace of Mary, Queen of Scots in 1542. The palace has been a roofless shell since a fire in 1746."},{"n":"Kirkcaldy","k":"Town","t":2,"lat":56.111,"lon":-3.167,"ca":"Fife","f":"The Lang Toun, once the world capital of linoleum, and the birthplace of the economist Adam Smith."},{"n":"Dornoch","k":"Town","t":2,"lat":57.88,"lon":-4.029,"ca":"Highland","f":"A small cathedral town with a famous links course. Scotland's last execution for witchcraft took place here in 1727."},{"n":"Nairn","k":"Town","t":2,"lat":57.586,"lon":-3.869,"ca":"Highland","f":"A Moray Firth seaside town, among the driest and sunniest places in Scotland."},{"n":"Lochleven Castle","k":"Castle","t":2,"lat":56.2,"lon":-3.392,"ca":"Perth and Kinross","f":"An island castle. Mary, Queen of Scots was held here in 1567, forced to abdicate, and escaped by boat the following year."},{"n":"Alloway","k":"Village","t":2,"lat":55.433,"lon":-4.633,"ca":"South Ayrshire","f":"Robert Burns was born in a thatched cottage here on 25 January 1759. The Brig o' Doon is a short walk away."},{"n":"Campbeltown","k":"Town","t":2,"lat":55.425,"lon":-5.605,"ca":"Argyll and Bute","f":"Near the foot of Kintyre. It once had more than 30 distilleries and still counts as a whisky region of its own."},{"n":"Dalwhinnie","k":"Village","t":2,"lat":56.934,"lon":-4.244,"ca":"Highland","f":"One of the highest villages in the Highlands, beside the A9 at the head of Loch Ericht, with a distillery at over 1,000 feet."},{"n":"Fort Augustus","k":"Village","t":2,"lat":57.144,"lon":-4.681,"ca":"Highland","f":"At the south-west end of Loch Ness, where a staircase of five locks lifts the Caledonian Canal."},{"n":"Urquhart Castle","k":"Castle","t":2,"lat":57.324,"lon":-4.442,"ca":"Highland","f":"A ruined fortress on the shore of Loch Ness, blown up in 1692 to keep it out of Jacobite hands."},{"n":"Milngavie","k":"Town","t":2,"lat":55.942,"lon":-4.317,"ca":"East Dunbartonshire","f":"Pronounced 'Mull-guy'. The 96-mile West Highland Way to Fort William starts in the town centre."},{"n":"Dumbarton Castle","k":"Castle","t":2,"lat":55.936,"lon":-4.563,"ca":"West Dunbartonshire","f":"It sits on a volcanic rock where the Leven meets the Clyde, and was the stronghold of the ancient kingdom of Strathclyde."},{"n":"Largs","k":"Town","t":2,"lat":55.794,"lon":-4.868,"ca":"North Ayrshire","f":"A Clyde coast resort. A battle here in 1263 helped end Norwegian rule over the Hebrides."},{"n":"Montrose","k":"Town","t":2,"lat":56.708,"lon":-2.467,"ca":"Angus","f":"An Angus port set between the North Sea and a tidal basin that fills with geese in winter."},{"n":"Peebles","k":"Town","t":2,"lat":55.651,"lon":-3.189,"ca":"Scottish Borders","f":"A Tweed valley town known for salmon fishing and for the mountain bike trails at nearby Glentress."},{"n":"Dunbar","k":"Town","t":2,"lat":56.002,"lon":-2.516,"ca":"East Lothian","f":"Birthplace in 1838 of John Muir, who went on to champion America's national parks."},{"n":"Cumbernauld","k":"Town","t":2,"lat":55.947,"lon":-3.99,"ca":"North Lanarkshire","f":"A new town designated in 1955 to rehouse Glaswegians. The film Gregory's Girl was shot here."},{"n":"Alloa","k":"Town","t":2,"lat":56.116,"lon":-3.79,"ca":"Clackmannanshire","f":"The main town of the Wee County, Scotland's smallest historic county. It was long known for brewing and glassmaking."},{"n":"Crieff","k":"Town","t":2,"lat":56.376,"lon":-3.842,"ca":"Perth and Kinross","f":"A Strathearn town that was once Scotland's great cattle market, where Highland drovers sold their herds."},{"n":"Aberfeldy","k":"Town","t":2,"lat":56.62,"lon":-3.867,"ca":"Perth and Kinross","f":"On the upper Tay, crossed by General Wade's bridge of 1733. Burns wrote 'The Birks of Aberfeldy' about the falls above the town."},{"n":"Helensburgh","k":"Town","t":2,"lat":56.004,"lon":-4.733,"ca":"Argyll and Bute","f":"A Clyde resort town, birthplace of the television pioneer John Logie Baird. Mackintosh's Hill House stands above it."},{"n":"Ballater","k":"Village","t":2,"lat":57.05,"lon":-3.04,"ca":"Aberdeenshire","f":"A Royal Deeside village. It was the railhead for Balmoral until the line closed in 1966."},{"n":"Grantown-on-Spey","k":"Town","t":2,"lat":57.33,"lon":-3.608,"ca":"Highland","f":"A planned town founded on the Spey in 1765 by Sir James Grant."},{"n":"Ben Lomond","k":"Mountain","t":2,"lat":56.1903,"lon":-4.633,"ca":"Stirling","f":"The most southerly Munro at 974 metres, rising from the east shore of Loch Lomond."},{"n":"Sandwood Bay","k":"Beach","t":3,"lat":58.539,"lon":-5.06,"ca":"Highland","f":"A mile of sand reached only by a four-mile walk, with the sea stack Am Buachaille at its southern end."},{"n":"Inverie","k":"Village","t":3,"lat":57.039,"lon":-5.684,"ca":"Highland","f":"The only village on Knoydart. No road reaches it: you arrive by boat from Mallaig or on foot. Its pub is the remotest on the British mainland."},{"n":"Applecross","k":"Village","t":3,"lat":57.433,"lon":-5.813,"ca":"Highland","f":"Reached over the Bealach na Bà, a single-track pass that climbs to 626 metres through hairpin bends."},{"n":"Corrour Station","k":"Railway station","t":3,"lat":56.76,"lon":-4.691,"ca":"Highland","f":"The highest mainline station in the UK at 408 metres, with no public road to it. It appears in Trainspotting."},{"n":"Rannoch Station","k":"Railway station","t":3,"lat":56.686,"lon":-4.577,"ca":"Perth and Kinross","f":"Where the B846 gives up at the edge of Rannoch Moor. The railway crosses the bog on a floating bed of brushwood."},{"n":"Schiehallion","k":"Mountain","t":3,"lat":56.667,"lon":-4.1,"ca":"Perth and Kinross","f":"In 1774 Nevil Maskelyne used this mountain to weigh the Earth. Contour lines were devised during the survey."},{"n":"Tomintoul","k":"Village","t":3,"lat":57.251,"lon":-3.379,"ca":"Moray","f":"The highest village in the Highlands at 345 metres, on the old military road over the Lecht."},{"n":"Wanlockhead","k":"Village","t":3,"lat":55.397,"lon":-3.78,"ca":"Dumfries and Galloway","f":"Scotland's highest village, at about 465 metres in the Lowther Hills. It was built on lead mining."},{"n":"Muckle Flugga","k":"Lighthouse","t":3,"lat":60.8555,"lon":-0.8855,"ca":"Shetland Islands","f":"Britain's most northerly lighthouse, first lit in 1854 on a rock off Unst. Only the bare rock of Out Stack lies further north."},{"n":"Sumburgh Head","k":"Headland","t":3,"lat":59.854,"lon":-1.275,"ca":"Shetland Islands","f":"The southern tip of Shetland's Mainland, with a Stevenson lighthouse of 1821 and puffins on the cliffs in summer."},{"n":"Sullom Voe","k":"Landmark","t":3,"lat":60.46,"lon":-1.28,"ca":"Shetland Islands","f":"An oil terminal opened by the Queen in 1981. At its peak it was one of the largest in Europe."},{"n":"Old Man of Hoy","k":"Landmark","t":3,"lat":58.886,"lon":-3.431,"ca":"Orkney Islands","f":"A 137-metre sandstone sea stack. It was first climbed in 1966, then again live on BBC television the following year."},{"n":"Ring of Brodgar","k":"Prehistoric site","t":3,"lat":59.0015,"lon":-3.2297,"ca":"Orkney Islands","f":"One of the largest stone circles in Britain, 104 metres across, on a neck of land between two lochs."},{"n":"St Kilda","k":"Island","t":3,"lat":57.813,"lon":-8.57,"r":3,"ca":"Eilean Siar","f":"Forty miles west of the Outer Hebrides. Its last 36 residents asked to be evacuated in 1930. It is the UK's only dual World Heritage Site."},{"n":"Castlebay","k":"Village","t":3,"lat":56.954,"lon":-7.488,"ca":"Eilean Siar","f":"The main village on Barra, with Kisimul Castle on a rock in the bay. The island's airport runway is a tidal beach."},{"n":"Lochmaddy","k":"Village","t":3,"lat":57.598,"lon":-7.162,"ca":"Eilean Siar","f":"The ferry port of North Uist, in a landscape that is as much water as land."},{"n":"Butt of Lewis","k":"Headland","t":3,"lat":58.5155,"lon":-6.261,"ca":"Eilean Siar","f":"The northern tip of the Outer Hebrides. Guinness World Records once listed it as the windiest place in the UK."},{"n":"Eriskay","k":"Island","t":3,"lat":57.075,"lon":-7.29,"r":2,"ca":"Eilean Siar","f":"The SS Politician ran aground here in 1941 carrying 264,000 bottles of whisky, the story behind Whisky Galore."},{"n":"Fingal's Cave","k":"Landmark","t":3,"lat":56.4313,"lon":-6.3414,"ca":"Argyll and Bute","f":"A sea cave of basalt columns on Staffa. Mendelssohn wrote his Hebrides overture after visiting in 1829."},{"n":"Craighouse","k":"Village","t":3,"lat":55.833,"lon":-5.95,"ca":"Argyll and Bute","f":"The only village on Jura, where deer outnumber people about thirty to one. Orwell wrote Nineteen Eighty-Four at the island's north end."},{"n":"Corryvreckan","k":"Whirlpool","t":3,"lat":56.154,"lon":-5.715,"ca":"Argyll and Bute","f":"A tidal whirlpool between Jura and Scarba, among the largest in the world. George Orwell nearly drowned here in 1947."},{"n":"Scarinish","k":"Village","t":3,"lat":56.5,"lon":-6.808,"ca":"Argyll and Bute","f":"The main village on Tiree, a low, treeless island that is among the sunniest places in Britain."},{"n":"Isle of Gigha","k":"Island","t":3,"lat":55.68,"lon":-5.75,"r":3,"ca":"Argyll and Bute","f":"A small island off Kintyre that was bought by its own residents in 2002."},{"n":"Isle of Eigg","k":"Island","t":3,"lat":56.9,"lon":-6.15,"r":3,"ca":"Highland","f":"Bought by its own residents in 1997. Since 2008 it has run its own grid on wind, water and solar power."},{"n":"Kinloch, Rum","k":"Village","t":3,"lat":57.013,"lon":-6.281,"ca":"Highland","f":"The only settlement on Rum, beside Kinloch Castle, an Edwardian shooting lodge built for a Lancashire mill heir."},{"n":"Ailsa Craig","k":"Island","t":3,"lat":55.252,"lon":-5.116,"r":1,"ca":"South Ayrshire","f":"A granite plug in the Firth of Clyde, nicknamed Paddy's Milestone. Its rock makes most of the world's curling stones."},{"n":"Millport","k":"Town","t":3,"lat":55.752,"lon":-4.928,"ca":"North Ayrshire","f":"The only town on Great Cumbrae. Its Cathedral of the Isles is the smallest cathedral in Britain."},{"n":"Lochranza","k":"Village","t":3,"lat":55.705,"lon":-5.295,"ca":"North Ayrshire","f":"At the northern tip of Arran, with a ruined castle on a shingle spit and red deer grazing the village green."},{"n":"Crinan","k":"Village","t":3,"lat":56.091,"lon":-5.556,"ca":"Argyll and Bute","f":"The western end of the nine-mile Crinan Canal, cut so that boats could avoid the long passage round Kintyre."},{"n":"Dunadd","k":"Prehistoric site","t":3,"lat":56.086,"lon":-5.478,"ca":"Argyll and Bute","f":"A rocky fort in Kilmartin Glen where the kings of Dál Riata were inaugurated. A footprint is carved into the summit rock."},{"n":"Fortingall","k":"Village","t":3,"lat":56.598,"lon":-4.051,"ca":"Perth and Kinross","f":"The yew in its churchyard is thought to be at least 2,000 years old, one of the oldest living things in Europe."},{"n":"Killiecrankie","k":"Battlefield","t":3,"lat":56.743,"lon":-3.776,"ca":"Perth and Kinross","f":"A wooded gorge where Jacobites routed a government army in 1689. One fleeing soldier is said to have leapt 18 feet across the River Garry."},{"n":"Kinloch Rannoch","k":"Village","t":3,"lat":56.699,"lon":-4.187,"ca":"Perth and Kinross","f":"At the eastern end of Loch Rannoch, on the road that runs west until it stops at the moor."},{"n":"Blair Castle","k":"Castle","t":3,"lat":56.767,"lon":-3.847,"ca":"Perth and Kinross","f":"Seat of the Dukes of Atholl. The Atholl Highlanders, based here, are Europe's only legal private army."},{"n":"Tyndrum","k":"Village","t":3,"lat":56.436,"lon":-4.711,"ca":"Stirling","f":"A tiny village with two railway stations on two different lines. Gold is mined in the hills nearby at Cononish."},{"n":"Loch Katrine","k":"Loch","t":3,"lat":56.254,"lon":-4.52,"r":4,"ca":"Stirling","f":"Glasgow has drunk its water since 1859. Rob Roy MacGregor was born at the head of the loch."},{"n":"Doune Castle","k":"Castle","t":3,"lat":56.185,"lon":-4.05,"ca":"Stirling","f":"A 14th-century castle that played most of the castles in Monty Python and the Holy Grail."},{"n":"Cromarty","k":"Town","t":3,"lat":57.68,"lon":-4.035,"ca":"Highland","f":"A Georgian port at the tip of the Black Isle. Its name is read out in every Shipping Forecast."},{"n":"Helmsdale","k":"Village","t":3,"lat":58.117,"lon":-3.652,"ca":"Highland","f":"A Sutherland fishing village. A gold rush broke out in the strath above it in 1869."},{"n":"Tongue","k":"Village","t":3,"lat":58.478,"lon":-4.418,"ca":"Highland","f":"A north-coast village on a sea loch crossed by a causeway, with Ben Loyal behind."},{"n":"Altnaharra","k":"Village","t":3,"lat":58.288,"lon":-4.44,"ca":"Highland","f":"A hamlet in the middle of Sutherland. In December 1995 it equalled the UK's lowest temperature on record, −27.2°C."},{"n":"Ben Hope","k":"Mountain","t":3,"lat":58.413,"lon":-4.608,"ca":"Highland","f":"The most northerly Munro, at 927 metres."},{"n":"Suilven","k":"Mountain","t":3,"lat":58.115,"lon":-5.137,"ca":"Highland","f":"A 731-metre ridge of sandstone rising alone from the Assynt moors. The local community bought it in 2005."},{"n":"Lairg","k":"Village","t":3,"lat":58.022,"lon":-4.4,"ca":"Highland","f":"The crossroads of Sutherland, at the foot of Loch Shin. Its August lamb sale is among the largest one-day sheep sales in Europe."},{"n":"Dounreay","k":"Landmark","t":3,"lat":58.578,"lon":-3.745,"ca":"Highland","f":"A nuclear research site on the north coast. Its fast reactor, in a white sphere, fed the grid from 1962. The site is now being dismantled."},{"n":"Dunnet Head","k":"Headland","t":3,"lat":58.672,"lon":-3.376,"ca":"Highland","f":"The true northernmost point of mainland Britain, about two miles further north than John o' Groats."},{"n":"Gairloch","k":"Village","t":3,"lat":57.728,"lon":-5.692,"ca":"Highland","f":"A scattered Wester Ross village. Nearby Inverewe Garden grows subtropical plants further north than Moscow, warmed by the Gulf Stream."},{"n":"Torridon","k":"Village","t":3,"lat":57.545,"lon":-5.513,"ca":"Highland","f":"It sits below Liathach, whose terraced sandstone is up to a billion years old."},{"n":"Plockton","k":"Village","t":3,"lat":57.338,"lon":-5.653,"ca":"Highland","f":"A sheltered lochside village where palm-like cabbage trees line the main street. Hamish Macbeth was filmed here."},{"n":"Achiltibuie","k":"Village","t":3,"lat":58.025,"lon":-5.352,"ca":"Highland","f":"A crofting township strung along the Coigach coast, looking out to the Summer Isles."},{"n":"Glenelg","k":"Village","t":3,"lat":57.212,"lon":-5.622,"ca":"Highland","f":"A palindrome of a village facing Skye, with two Iron Age brochs up the glen. It was twinned with Glenelg on Mars in 2012."},{"n":"Ardnamurchan Point","k":"Headland","t":3,"lat":56.727,"lon":-6.226,"ca":"Highland","f":"Its lighthouse stands beside the most westerly point of mainland Britain, over 20 miles further west than Land's End."},{"n":"Strontian","k":"Village","t":3,"lat":56.695,"lon":-5.57,"ca":"Highland","f":"The element strontium was first identified in ore from the lead mines here, and is named after the village."},{"n":"Kinlochleven","k":"Village","t":3,"lat":56.713,"lon":-4.964,"ca":"Highland","f":"Built around an aluminium smelter. In 1907 it became one of the first villages in the world with electricity in every house."},{"n":"Commando Memorial","k":"Landmark","t":3,"lat":56.898,"lon":-4.944,"ca":"Highland","f":"Three bronze soldiers look out over the ground where the Commandos trained during the Second World War."},{"n":"Morar","k":"Village","t":3,"lat":56.969,"lon":-5.822,"ca":"Highland","f":"Known for its white sands. Loch Morar behind it is the deepest fresh water in the British Isles, at 310 metres."},{"n":"Ben Macdui","k":"Mountain","t":3,"lat":57.0704,"lon":-3.6691,"ca":"Aberdeenshire / Moray","f":"Britain's second-highest mountain at 1,309 metres, said to be haunted by the Big Grey Man."},{"n":"Findhorn","k":"Village","t":3,"lat":57.659,"lon":-3.61,"ca":"Moray","f":"Home since 1962 to the Findhorn eco-community. Two earlier villages of the same name were lost to sand and sea."},{"n":"Pennan","k":"Village","t":3,"lat":57.679,"lon":-2.26,"ca":"Aberdeenshire","f":"A single row of houses under a cliff. Its red phone box starred in the 1983 film Local Hero."},{"n":"Fair Isle","k":"Island","t":3,"lat":59.533,"lon":-1.633,"r":2,"ca":"Shetland Islands","f":"Britain's most remote inhabited island, halfway between Orkney and Shetland, known for its knitting patterns and its bird observatory."},{"n":"North Ronaldsay","k":"Island","t":3,"lat":59.37,"lon":-2.42,"r":2,"ca":"Orkney Islands","f":"Orkney's most northerly island. A stone dyke round the shore keeps its sheep on the beach, where they live on seaweed."},{"n":"Italian Chapel","k":"Landmark","t":3,"lat":58.89,"lon":-2.89,"ca":"Orkney Islands","f":"Built from two Nissen huts by Italian prisoners of war, who were on Orkney to build the Churchill Barriers across Scapa Flow."},{"n":"Isle of May","k":"Island","t":3,"lat":56.186,"lon":-2.558,"r":1,"ca":"Fife","f":"A seabird island at the mouth of the Firth of Forth. Scotland's first lighthouse, a coal-fired beacon, was lit here in 1636."},{"n":"Crail","k":"Village","t":3,"lat":56.26,"lon":-2.627,"ca":"Fife","f":"The most easterly of the East Neuk fishing villages, with a tiny stone harbour."},{"n":"Culross","k":"Village","t":3,"lat":56.055,"lon":-3.629,"ca":"Fife","f":"A 17th-century burgh preserved almost whole, with an ochre palace. It stands in for Cranesmuir in Outlander."},{"n":"Falkland Palace","k":"Landmark","t":3,"lat":56.254,"lon":-3.206,"ca":"Fife","f":"A Stewart hunting palace below the Lomond Hills. Its real tennis court, built in 1539, is the oldest still in use."},{"n":"Eaglesham","k":"Village","t":3,"lat":55.74,"lon":-4.275,"ca":"East Renfrewshire","f":"Rudolf Hess, Hitler's deputy, parachuted into a field near here in May 1941 on a solo peace mission."},{"n":"Biggar","k":"Town","t":3,"lat":55.623,"lon":-3.525,"ca":"South Lanarkshire","f":"A market town between the Clyde and the Tweed, which here run only about seven miles apart."},{"n":"Whithorn","k":"Town","t":3,"lat":54.733,"lon":-4.416,"ca":"Dumfries and Galloway","f":"Site of Scotland's earliest recorded Christian church, founded by St Ninian around 397."},{"n":"Kirkcudbright","k":"Town","t":3,"lat":54.838,"lon":-4.049,"ca":"Dumfries and Galloway","f":"Pronounced 'Kir-coo-bree'. A harbour town that drew a colony of painters from the 1880s, now styled the Artists' Town."},{"n":"Portpatrick","k":"Village","t":3,"lat":54.842,"lon":-5.117,"ca":"Dumfries and Galloway","f":"A harbour village on the Rhins of Galloway, once the packet port for Ireland, 21 miles away."},{"n":"Moffat","k":"Town","t":3,"lat":55.333,"lon":-3.444,"ca":"Dumfries and Galloway","f":"A former spa town in Annandale with a bronze ram on its high street. It became Europe's first Dark Sky Town in 2009."},{"n":"Sanquhar","k":"Town","t":3,"lat":55.368,"lon":-3.925,"ca":"Dumfries and Galloway","f":"Home to the world's oldest working post office, open since 1712."},{"n":"Langholm","k":"Town","t":3,"lat":55.151,"lon":-2.999,"ca":"Dumfries and Galloway","f":"The Muckle Toun. Neil Armstrong came here in 1972 to be made its first freeman, in the heart of Armstrong clan country."},{"n":"Eyemouth","k":"Town","t":3,"lat":55.872,"lon":-2.089,"ca":"Scottish Borders","f":"A Berwickshire fishing port that lost 189 fishermen in a single storm in October 1881."},{"n":"Coldstream","k":"Town","t":3,"lat":55.651,"lon":-2.253,"ca":"Scottish Borders","f":"It faces England across the Tweed. General Monck's regiment marched from here to London in 1660 and became the Coldstream Guards."}];
+
+// ───────────────────────── Game rules ─────────────────────────
+const WEIGHTS = [1, 1, 2, 3, 3];                       // rounds 4 and 5 count triple
+const WEIGHT_WORDS = ["counts once", "counts once", "counts double", "counts triple", "counts triple"];
+const ROUND_TIERS = [1, 1, 2, 3, 3];                   // easy, easy, medium, hard, hard
+const FIRST_DAY = Date.UTC(2026, 10, 9);               // puzzle #1 is 9 November 2026
+const BULLSEYE_KM = 3;                                 // anything this close scores 100
+const FALLOFF_KM = 70;                                 // how quickly points drop away with distance
+
+// Points (0-100) for a guess `km` away from a place whose own radius is `r` km.
+function scoreFor(km, r) {
+  const off = Math.max(0, km - (r || 0) - BULLSEYE_KM);
+  return Math.round(100 * Math.exp(-Math.pow(off / FALLOFF_KM, 1.25)));
+}
+function haversine(lat1, lon1, lat2, lon2) {
+  const t = Math.PI / 180;
+  const a = Math.sin((lat2 - lat1) * t / 2) ** 2 + Math.cos(lat1 * t) * Math.cos(lat2 * t) * Math.sin((lon2 - lon1) * t / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
+
+// ───────────────────────── Dates and the daily puzzle ─────────────────────────
+function london(d) {
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+  const o = {};
+  for (const p of f.formatToParts(d || new Date())) if (p.type !== "literal") o[p.type] = +p.value;
+  return o;
+}
+function todayNumber() { const p = london(); return Math.round((Date.UTC(p.year, p.month - 1, p.day) - FIRST_DAY) / 864e5); }
+function dateForNumber(n) { return new Date(FIRST_DAY + n * 864e5); }
+function fmtDate(n, long) {
+  return new Intl.DateTimeFormat("en-GB", long ? { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" }).format(dateForNumber(n));
+}
+
+// A small seeded random number generator, so everyone gets the same five places on the same day.
+function rng(seed) {
+  let a = seed >>> 0;
+  return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function shuffled(list, seed) {
+  const a = list.slice(), r = rng(seed);
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const TIERS = { 1: [], 2: [], 3: [] };
+PLACES.forEach((p, i) => TIERS[p.t].push(i));
+
+// Each tier is dealt out like a shuffled deck: no place repeats until the whole tier has been used.
+function pickDaily(n) {
+  n = Math.max(0, n);
+  const used = { 1: 0, 2: 0, 3: 0 }, perDay = { 1: 2, 2: 1, 3: 2 }, out = [];
+  for (const t of ROUND_TIERS) {
+    const pool = TIERS[t];
+    let idx = n * perDay[t] + used[t]++, pick;
+    do {
+      const deck = shuffled(pool, t * 7919 + Math.floor(idx / pool.length) * 104729 + 17);
+      pick = deck[idx % pool.length]; idx++;
+    } while (out.includes(pick));
+    out.push(pick);
+  }
+  return out;
+}
+function pickPractice() {
+  const out = [];
+  for (const t of ROUND_TIERS) { let p; do { p = TIERS[t][Math.floor(Math.random() * TIERS[t].length)]; } while (out.includes(p)); out.push(p); }
+  return out;
+}
+
+// ───────────────────────── Saved progress (this browser only) ─────────────────────────
+const KEY = "whaur.v1";
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+function save(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* private window: play on without saving */ } }
+
+// Every finished daily game is kept as { t: total, s: the five round scores }, filed under its puzzle number.
+function keepDay(n, results) {
+  const o = load(); o.history = o.history || {};
+  if (o.history[n]) return;                                  // a day's first finished score is the one that stands
+  const s = results.map(r => r.s);
+  o.history[n] = { t: s.reduce((sum, v, i) => sum + v * WEIGHTS[i], 0), s };
+  save(o);
+}
+function pastScores() {
+  const h = load().history || {};
+  const days = Object.keys(h).map(Number).filter(n => h[n] && Array.isArray(h[n].s)).sort((a, b) => b - a).map(n => ({ n, t: h[n].t, s: h[n].s }));
+  let d = todayNumber(), streak = 0;
+  if (!h[d]) d--;                                            // today not played yet does not break a streak
+  while (h[d]) { streak++; d--; }
+  const sum = days.reduce((a, x) => a + x.t, 0);
+  return { days, streak, played: days.length, best: days.reduce((a, x) => Math.max(a, x.t), 0), avg: days.length ? Math.round(sum / days.length) : 0 };
+}
+
+// ───────────────────────── Map projection ─────────────────────────
+// Transverse Mercator centred on Scotland. Map units come out in kilometres, with north up.
+const RAD = Math.PI / 180, EARTH = 6371, LON0 = -4.2 * RAD, LAT0 = 57.7 * RAD;
+function project(lon, lat) {
+  const l = lon * RAD - LON0, p = lat * RAD;
+  return [EARTH * Math.atanh(Math.cos(p) * Math.sin(l)), -EARTH * (Math.atan2(Math.tan(p), Math.cos(l)) - LAT0)];
+}
+function unproject(x, y) {
+  const X = x / EARTH, Y = -y / EARTH + LAT0;
+  return [(LON0 + Math.atan2(Math.sinh(X), Math.cos(Y))) / RAD, Math.asin(Math.sin(Y) / Math.cosh(X)) / RAD];
+}
+function decode(str) {
+  const out = []; let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    for (let which = 0; which < 2; which++) {
+      let b, shift = 0, res = 0;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (which === 0) lat += d; else lon += d;
+    }
+    out.push([lon / DATA.f, lat / DATA.f]);
+  }
+  return out;
+}
+const bounds = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+function buildPath(list, close, track) {
+  const path = new Path2D();
+  for (const s of list) {
+    const pts = decode(s);
+    for (let i = 0; i < pts.length; i++) {
+      const [x, y] = project(pts[i][0], pts[i][1]);
+      if (i) path.lineTo(x, y); else path.moveTo(x, y);
+      if (track) { if (x < bounds.x0) bounds.x0 = x; if (x > bounds.x1) bounds.x1 = x; if (y < bounds.y0) bounds.y0 = y; if (y > bounds.y1) bounds.y1 = y; }
+    }
+    if (close) path.closePath();
+  }
+  return path;
+}
+const SHAPES = { land: buildPath(DATA.land, true, true) };
+
+// The satellite picture comes in three sizes: a tiny one built into the page so there is always a map,
+// then a medium and a full-detail one that load in the background. SAT says where the picture sits in km.
+const SAT = DATA.sat, PICS = { thumb: new Image(), medium: null, full: null };
+function loadPicture(name, file, then) {
+  const im = new Image();
+  im.onload = () => { PICS[name] = im; draw(); if (then) then(); };
+  im.src = file;
+}
+// Lines of latitude and longitude, kept as sampled points so they can be labelled at the screen edge.
+const GRAT = { lat: [], lon: [], path: new Path2D() };
+for (let lat = 54; lat <= 62; lat++) { const pts = []; for (let lon = -13; lon <= 4; lon += .25) pts.push(project(lon, lat)); GRAT.lat.push({ v: lat, pts }); }
+for (let lon = -12; lon <= 2; lon += 2) { const pts = []; for (let lat = 53; lat <= 62.5; lat += .25) pts.push(project(lon, lat)); GRAT.lon.push({ v: lon, pts }); }
+for (const g of GRAT.lat.concat(GRAT.lon)) g.pts.forEach((p, i) => i ? GRAT.path.lineTo(p[0], p[1]) : GRAT.path.moveTo(p[0], p[1]));
+
+// ───────────────────────── Canvas and camera ─────────────────────────
+const $ = id => document.getElementById(id);
+const stage = $("stage"), canvas = $("map"), ctx = canvas.getContext("2d"), sheet = $("sheet");
+const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+let W = 300, H = 300, dpr = 1;
+const view = { x: 0, y: 0, k: 1 };          // centre of the view in km, and pixels per km
+let home = { x: 0, y: 0, k: 1 }, minK = 1, maxK = 10, userMoved = false, creditH = 30;
+const MAX_ZOOM = 5.5;                      // most pixels per km: close enough to read a firth, not a road
+let C = {}, FONT = "sans-serif", FONT_TEXT = "serif";
+
+function readColours() {
+  const s = getComputedStyle(document.documentElement), v = n => s.getPropertyValue(n).trim();
+  // The map is always a dark satellite view, so what is drawn on it does not change with the theme.
+  C = { ready: true, mark: v("--mark") || "#ffc83d", light: "#ffffff", dark: "rgba(4, 16, 34, .8)" };
+  FONT = v("--display") || "sans-serif"; FONT_TEXT = v("--text") || "serif";
+}
+function clampView() {
+  view.k = Math.min(maxK, Math.max(minK, view.k));
+  view.x = Math.min(bounds.x1 + 30, Math.max(bounds.x0 - 30, view.x));
+  view.y = Math.min(bounds.y1 + 30, Math.max(bounds.y0 - 30, view.y));
+}
+function fitBox(x0, y0, x1, y1, pad) {
+  const k = Math.min((W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, k };
+}
+function resize() {
+  W = Math.max(50, stage.clientWidth); H = Math.max(50, stage.clientHeight); dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  home = fitBox(bounds.x0, bounds.y0, bounds.x1, bounds.y1, 14);
+  minK = home.k * .8; maxK = Math.max(MAX_ZOOM, home.k * 2.5);
+  creditH = $("imagery").offsetHeight + 8;
+  if (cam && cam.home) cam.to = { ...home };
+  else if (!userMoved && !cam) Object.assign(view, home);
+  clampView(); draw();
+}
+const toScreen = p => [(p[0] - view.x) * view.k + W / 2, (p[1] - view.y) * view.k + H / 2];
+const toMap = (sx, sy) => [view.x + (sx - W / 2) / view.k, view.y + (sy - H / 2) / view.k];
+function zoomAt(sx, sy, factor) {
+  const m = toMap(sx, sy);
+  view.k = Math.min(maxK, Math.max(minK, view.k * factor));
+  view.x = m[0] - (sx - W / 2) / view.k; view.y = m[1] - (sy - H / 2) / view.k;
+  clampView(); userMoved = true; cam = null; draw();
+}
+
+// Animations: the camera gliding to a new view, and the line drawing itself from guess to answer.
+let cam = null, reveal = null, raf = 0;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+function flyTo(target, ms, isHome) {
+  target = { x: target.x, y: target.y, k: Math.min(maxK, Math.max(minK, target.k)) };
+  if (still.matches || !ms) { Object.assign(view, target); cam = null; draw(); return; }
+  cam = { from: { ...view }, to: target, t0: performance.now(), ms, home: !!isHome }; kick();
+}
+function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+function frame(now) {
+  raf = 0;
+  if (cam) {
+    const t = Math.min(1, (now - cam.t0) / cam.ms), e = ease(t);
+    view.x = cam.from.x + (cam.to.x - cam.from.x) * e; view.y = cam.from.y + (cam.to.y - cam.from.y) * e;
+    view.k = cam.from.k * Math.pow(cam.to.k / cam.from.k, e);
+    if (t >= 1) cam = null;
+  }
+  if (reveal) {
+    const t = Math.min(1, Math.max(0, (now - reveal.t0 - reveal.delay) / reveal.ms));
+    G.anim = ease(t);
+    if (t >= 1) reveal = null;
+  }
+  draw();
+  if (cam || reveal) kick();
+}
+
+// ───────────────────────── Drawing ─────────────────────────
+function draw() {
+  if (!C.ready) return;
+  const k = view.k;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = SAT.sea; ctx.fillRect(0, 0, W, H);
+
+  ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (W / 2 - view.x * k), dpr * (H / 2 - view.y * k));
+  // Use the full-detail picture only once it would actually show; the medium one is smoother zoomed out.
+  const detail = k * dpr * SAT.kmPerPx;
+  const pic = (PICS.full && detail > .42) ? PICS.full : PICS.medium || (PICS.thumb.naturalWidth ? PICS.thumb : null);
+  if (pic) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(pic, SAT.x0, SAT.y0, SAT.w, SAT.h); }
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255, 255, 255, .12)"; ctx.lineWidth = 1 / k; ctx.stroke(GRAT.path);
+  // Coastline (and the border with England): a dark casing with a light line on top.
+  const thin = k < 1.2 ? .8 : 1;   // a finer line when the whole country is in view
+  ctx.strokeStyle = "rgba(4, 16, 34, .5)"; ctx.lineWidth = 2.4 * thin / k; ctx.stroke(SHAPES.land);
+  ctx.strokeStyle = "rgba(255, 255, 255, .88)"; ctx.lineWidth = thin / k; ctx.stroke(SHAPES.land);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawGraticuleLabels(); drawScaleBar(); drawMarkers();
+}
+// Where a sampled line crosses a fixed screen x (axis 0) or y (axis 1).
+function crossing(pts, axis, at) {
+  let prev = toScreen(pts[0]);
+  for (let i = 1; i < pts.length; i++) {
+    const cur = toScreen(pts[i]);
+    if ((prev[axis] - at) * (cur[axis] - at) <= 0 && prev[axis] !== cur[axis]) {
+      const t = (at - prev[axis]) / (cur[axis] - prev[axis]);
+      return prev[1 - axis] + (cur[1 - axis] - prev[1 - axis]) * t;
+    }
+    prev = cur;
+  }
+  return null;
+}
+function drawGraticuleLabels() {
+  ctx.font = "500 10px " + FONT; ctx.fillStyle = C.light; ctx.globalAlpha = .7; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  for (const g of GRAT.lat) { const y = crossing(g.pts, 0, 4); if (y !== null && y > 26 && y < H - creditH - 30) ctx.fillText(g.v + "°N", 5, y - 7); }
+  ctx.textAlign = "center";
+  for (const g of GRAT.lon) { const x = crossing(g.pts, 1, 4); if (x !== null && x > 40 && x < W - 30) ctx.fillText(g.v === 0 ? "0°" : g.v > 0 ? g.v + "°E" : -g.v + "°W", x + 14, 9); }
+  ctx.globalAlpha = 1;
+}
+function drawScaleBar() {
+  const km = [200, 100, 50, 20, 10, 5, 2, 1].find(v => v * view.k <= 110) || 1, len = km * view.k, x = 12, y = H - creditH - 6;
+  ctx.save(); ctx.shadowColor = "rgba(0, 0, 0, .7)"; ctx.shadowBlur = 3;
+  ctx.strokeStyle = C.light; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(x, y - 5); ctx.lineTo(x, y); ctx.lineTo(x + len, y); ctx.lineTo(x + len, y - 5); ctx.stroke();
+  ctx.font = "600 11px " + FONT; ctx.fillStyle = C.light; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(km + " km", x + 5, y - 5); ctx.restore();
+}
+function haloText(text, x, y, font, align) {
+  ctx.font = font; ctx.textAlign = align || "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+  ctx.strokeStyle = C.dark; ctx.lineWidth = 4; ctx.strokeText(text, x, y);
+  ctx.fillStyle = C.light; ctx.fillText(text, x, y);
+}
+function drawPin(p) {
+  ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.fillStyle = C.light; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = C.dark; ctx.stroke();
+}
+function drawTarget(p, s) {
+  ctx.beginPath(); ctx.arc(p[0], p[1], 12 * s, 0, 7); ctx.fillStyle = "rgba(4, 16, 34, .45)"; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = C.mark; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p[0], p[1], 4.5 * s, 0, 7); ctx.fillStyle = C.mark; ctx.fill();
+}
+function drawMarkers() {
+  const all = G.phase === "done";
+  const which = all ? G.results.map((r, i) => i) : G.phase === "reveal" ? [G.results.length - 1] : [];
+  for (const i of which) {
+    const r = G.results[i], place = PLACES[G.ids[i]], t = all ? 1 : G.anim;
+    const a = toScreen(project(place.lon, place.lat)), g = toScreen(project(r.lon, r.lat));
+    ctx.beginPath(); ctx.moveTo(g[0], g[1]); ctx.lineTo(g[0] + (a[0] - g[0]) * t, g[1] + (a[1] - g[1]) * t);
+    ctx.lineWidth = 4.5; ctx.strokeStyle = "rgba(4, 16, 34, .55)"; ctx.stroke();
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.strokeStyle = C.light; ctx.stroke(); ctx.setLineDash([]);
+    if (place.r && t >= 1) {   // the zone that counts as spot on, for lochs and islands
+      ctx.beginPath(); ctx.arc(a[0], a[1], (place.r + BULLSEYE_KM) * view.k, 0, 7);
+      ctx.setLineDash([2, 3]); ctx.lineWidth = 1.5; ctx.strokeStyle = C.mark; ctx.stroke(); ctx.setLineDash([]);
+    }
+    drawPin(g);
+    if (t > .98) {
+      drawTarget(a, 1);
+      if (all) haloText(String(i + 1), a[0] + 16, a[1] + 5, "700 13px " + FONT, "left");
+      else haloText(place.n, a[0], a[1] - 19, "700 14px " + FONT);
+    }
+  }
+  if (G.phase === "guess" && G.guess) drawPin(toScreen(project(G.guess.lon, G.guess.lat)));
+}
+
+// ───────────────────────── Touch, mouse and wheel ─────────────────────────
+const fingers = new Map();
+let tapStart = null, dragging = false, pinch = null;
+const local = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+canvas.addEventListener("pointerdown", e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  const p = local(e); fingers.set(e.pointerId, p);
+  if (fingers.size === 1) { tapStart = p; dragging = false; }
+  else { tapStart = null; dragging = true; pinch = null; }
+});
+canvas.addEventListener("pointermove", e => {
+  if (!fingers.has(e.pointerId)) return;
+  const p = local(e), prev = fingers.get(e.pointerId); fingers.set(e.pointerId, p);
+  if (fingers.size === 1) {
+    if (!dragging && tapStart && Math.hypot(p[0] - tapStart[0], p[1] - tapStart[1]) > 7) dragging = true;
+    if (dragging) { view.x -= (p[0] - prev[0]) / view.k; view.y -= (p[1] - prev[1]) / view.k; clampView(); userMoved = true; cam = null; draw(); }
+  } else if (fingers.size === 2) {
+    const [a, b] = [...fingers.values()], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dist = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinch) {
+      view.x -= (mid[0] - pinch.mid[0]) / view.k; view.y -= (mid[1] - pinch.mid[1]) / view.k;
+      zoomAt(mid[0], mid[1], dist / Math.max(1, pinch.dist));
+    }
+    pinch = { mid, dist };
+  }
+});
+function release(e) {
+  if (!fingers.has(e.pointerId)) return;
+  const p = local(e); fingers.delete(e.pointerId); pinch = null;
+  if (e.type === "pointerup" && !dragging && tapStart && fingers.size === 0) placeGuess(p[0], p[1]);
+  if (fingers.size === 0) { tapStart = null; dragging = false; }
+}
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+canvas.addEventListener("wheel", e => { e.preventDefault(); const p = local(e); zoomAt(p[0], p[1], Math.exp(-e.deltaY * (e.deltaMode ? .05 : .0018))); }, { passive: false });
+$("zin").addEventListener("click", () => zoomAt(W / 2, H / 2, 1.7));
+$("zout").addEventListener("click", () => zoomAt(W / 2, H / 2, 1 / 1.7));
+$("zfit").addEventListener("click", () => { userMoved = false; flyTo(home, 500, true); });
+
+// ───────────────────────── The game ─────────────────────────
+// G is everything about the game in progress.
+const G = { mode: "daily", n: 0, ids: [], results: [], guess: null, phase: "guess", anim: 1 };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const total = () => G.results.reduce((sum, r, i) => sum + r.s * WEIGHTS[i], 0);
+const fmtKm = km => km < 1 ? "under 1 km" : km < 10 ? km.toFixed(1) + " km" : Math.round(km) + " km";
+const fmtMiles = km => { const m = km * .621371; return m < 1 ? "under a mile" : (m < 10 ? m.toFixed(1) : Math.round(m)) + " miles"; };
+
+function startDaily() {
+  G.mode = "daily"; G.n = todayNumber(); G.ids = pickDaily(G.n); G.results = []; G.guess = null; G.phase = "guess";
+  const saved = load().daily;
+  if (saved && Array.isArray(saved.results) && saved.results.length >= 5) keepDay(saved.n, saved.results);   // picks up a day finished before score history existed
+  if (saved && saved.n === G.n && Array.isArray(saved.results) && saved.results.every((r, i) => i < 5 && PLACES[G.ids[i]].n === r.name)) {
+    G.results = saved.results; if (G.results.length >= 5) G.phase = "done";
+  }
+  userMoved = false; cam = null; render(); flyTo(home, 0, true);
+}
+function startPractice() {
+  G.mode = "practice"; G.ids = pickPractice(); G.results = []; G.guess = null; G.phase = "guess";
+  userMoved = false; render(); flyTo(home, 500, true);
+}
+function placeGuess(sx, sy) {
+  if (G.phase !== "guess") return;
+  const m = toMap(sx, sy), ll = unproject(m[0], m[1]);
+  G.guess = { lon: ll[0], lat: ll[1] }; draw();
+  const b = $("lock"); if (b) { b.disabled = false; b.textContent = "Lock in guess"; }
+}
+function lockGuess() {
+  if (G.phase !== "guess" || !G.guess) return;
+  const i = G.results.length, place = PLACES[G.ids[i]];
+  const km = haversine(G.guess.lat, G.guess.lon, place.lat, place.lon);
+  G.results.push({ name: place.n, lat: G.guess.lat, lon: G.guess.lon, km, s: scoreFor(km, place.r) });
+  G.guess = null; G.phase = "reveal"; G.anim = still.matches ? 1 : 0;
+  if (G.mode === "daily") { const o = load(); o.daily = { n: G.n, results: G.results }; save(o); }
+  render();
+  // Frame the guess and the answer together.
+  const a = project(place.lon, place.lat), g = project(G.results[i].lon, G.results[i].lat), half = Math.max(18, (place.r || 0) + 8);
+  const box = fitBox(Math.min(a[0], g[0]) - half, Math.min(a[1], g[1]) - half, Math.max(a[0], g[0]) + half, Math.max(a[1], g[1]) + half, 44);
+  box.k = Math.min(box.k, 4);
+  if (!still.matches) { reveal = { t0: performance.now(), delay: 450, ms: 600 }; }
+  flyTo(box, 700); kick();
+}
+function nextRound() {
+  if (G.phase !== "reveal") return;
+  if (G.results.length >= 5) return finish();
+  G.phase = "guess"; userMoved = false; render(); flyTo(home, 600, true);
+}
+function finish() {
+  G.phase = "done";
+  if (G.mode === "daily") keepDay(G.n, G.results);
+  userMoved = false; render(); flyTo(home, 700, true);
+}
+
+const EMOJI = s => s >= 97 ? "🎯" : s >= 90 ? "🔥" : s >= 80 ? "🏅" : s >= 65 ? "👍" : s >= 45 ? "😬" : "🥶";
+function shareText() {
+  const head = G.mode === "daily" ? "Whaur? #" + (G.n + 1) + " · " + fmtDate(G.n) : "Whaur? practice round";
+  return head + "\n" + G.results.map(r => r.s + EMOJI(r.s)).join(" ") + "\nFinal score: " + total();
+}
+function verdict(t) {
+  return t >= 950 ? "Pure dead brilliant." : t >= 850 ? "Braw. You ken your map." : t >= 700 ? "No bad at aw." : t >= 500 ? "Could be waur." : t >= 300 ? "A bit of a guddle." : "Haud on. Was the map upside doon?";
+}
+
+// ───────────────────────── What the panel shows ─────────────────────────
+function renderMeter() {
+  const cur = G.phase === "guess" ? G.results.length : -1;
+  $("meter").innerHTML = WEIGHTS.map((w, i) => '<div class="seg' + (i === cur ? " now" : "") + '" style="flex:' + w + '"><i style="width:' + (G.results[i] ? G.results[i].s : 0) + '%"></i></div>').join("");
+  $("tally").textContent = total();
+  $("mode").textContent = G.mode === "daily" ? "#" + (G.n + 1) : "Practice";
+}
+let timer = 0;
+function render() {
+  renderMeter(); clearInterval(timer);
+  let h = "";
+  if (G.phase === "guess") {
+    const i = G.results.length, p = PLACES[G.ids[i]];
+    h = '<p class="eyebrow">' + (G.mode === "practice" ? "Practice · " : "") + "Round " + (i + 1) + " of 5 · " + WEIGHT_WORDS[i] + "</p>" +
+        '<h2 class="place">' + esc(p.n) + "</h2>" +
+        '<p class="kind">' + esc(p.k) + "</p>" +
+        '<button class="btn primary" type="button" id="lock" data-act="lock" disabled>Tap the map to drop your pin</button>';
+  } else if (G.phase === "reveal") {
+    const i = G.results.length - 1, r = G.results[i], p = PLACES[G.ids[i]], w = WEIGHTS[i];
+    const spot = r.km <= (p.r || 0) + BULLSEYE_KM;
+    h = '<div class="result"><div class="dist">' + (spot ? "Spot on" : fmtKm(r.km) + " out") + (spot ? "" : " <small>" + fmtMiles(r.km) + "</small>") + "</div>" +
+        '<div class="pts">+' + r.s * w + (w > 1 ? " <small>" + r.s + " × " + w + "</small>" : "") + "</div></div>" +
+        '<h2 class="place sm where">' + esc(p.n) + " <span>" + esc(p.ca) + "</span></h2>" +
+        '<p class="story">' + esc(p.f) + "</p>" +
+        '<button class="btn primary" type="button" data-act="next">' + (i === 4 ? "See your score" : "Next place") + "</button>";
+  } else {
+    const t = total(), st = pastScores();
+    h = '<p class="eyebrow">' + (G.mode === "daily" ? "Whaur? #" + (G.n + 1) + " · " + fmtDate(G.n, true) : "Practice round") + "</p>" +
+        '<div class="total"><strong>' + t + "</strong><span>/ 1000</span></div>" +
+        '<p class="verdict">' + verdict(t) + "</p>" +
+        '<ol class="rounds">' + G.results.map((r, i) => '<li><span class="num">' + (i + 1) + '</span><span class="nm">' + esc(r.name) + '</span><span class="km">' + fmtKm(r.km) + '</span><span class="sc">' + r.s * WEIGHTS[i] + "</span></li>").join("") + "</ol>" +
+        '<div class="row"><button class="btn primary" type="button" data-act="share" id="share">Copy result</button>' +
+        '<button class="btn" type="button" data-act="practice">' + (G.mode === "daily" ? "Play a practice round" : "Another practice round") + "</button>" +
+        (G.mode === "practice" ? '<button class="btn" type="button" data-act="daily">Back to today\'s five</button>' : '<button class="btn" type="button" data-act="history">Past scores</button>') + "</div>" +
+        '<textarea class="copybox" id="copybox" readonly hidden aria-label="Your result, ready to copy"></textarea>' +
+        '<p class="foot">' + (G.mode === "daily" ? 'Next five in <span id="count"></span>' + (st.played ? " · Streak " + st.streak + " · Best " + st.best : "") : "Practice rounds are not saved.") + "</p>";
+  }
+  sheet.innerHTML = h; sheet.scrollTop = 0;
+  if (G.phase === "done" && G.mode === "daily") {
+    const tick = () => {
+      const el = $("count"); if (!el) return clearInterval(timer);
+      if (todayNumber() !== G.n) { el.textContent = "ready now"; return; }
+      const p = london(), left = 86400 - (p.hour * 3600 + p.minute * 60 + p.second), z = v => String(v).padStart(2, "0");
+      el.textContent = z(Math.floor(left / 3600)) + ":" + z(Math.floor(left / 60) % 60) + ":" + z(left % 60);
+    };
+    tick(); timer = setInterval(tick, 1000);
+  }
+  resize();
+}
+sheet.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "lock") lockGuess();
+  else if (act === "next") nextRound();
+  else if (act === "practice") startPractice();
+  else if (act === "daily") startDaily();
+  else if (act === "history") openHistory();
+  else if (act === "share") {
+    const text = shareText(), box = $("copybox");
+    const fallback = () => { box.hidden = false; box.value = text; box.focus(); box.select(); b.textContent = "Select and copy below"; };
+    try { navigator.clipboard.writeText(text).then(() => { b.textContent = "Copied"; setTimeout(() => { if (b.isConnected) b.textContent = "Copy result"; }, 2000); }, fallback); }
+    catch (err) { fallback(); }
+  }
+});
+
+// How to play
+$("curve").innerHTML = [BULLSEYE_KM, 10, 25, 50, 100, 200].map(km => "<tr><td>" + (km === BULLSEYE_KM ? km + " km or less" : km + " km") + "</td><td>" + scoreFor(km, 0) + "</td></tr>").join("");
+$("helpBtn").addEventListener("click", () => { $("help").hidden = false; $("helpClose").focus(); });
+$("helpClose").addEventListener("click", () => { $("help").hidden = true; $("helpBtn").focus(); });
+$("help").addEventListener("click", e => { if (e.target === $("help")) $("help").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { $("help").hidden = true; $("hist").hidden = true; } });
+
+// Past scores
+function openHistory() {
+  const p = pastScores();
+  const day = n => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(dateForNumber(n));
+  $("histStats").innerHTML = [["Played", p.played], ["Average", p.avg], ["Best", p.best], ["Streak", p.streak]].map(x => "<div><dt>" + x[0] + "</dt><dd>" + x[1] + "</dd></div>").join("");
+  // Each row repeats the score meter in miniature: five segments sized 1:1:2:3:3, filled by that round's score.
+  $("histDays").innerHTML = p.days.slice(0, 400).map(d => '<li><span class="dn">#' + (d.n + 1) + '</span><span>' + day(d.n) + '</span><span class="mini">' +
+    WEIGHTS.map((w, i) => '<span style="flex:' + w + '"><i style="width:' + Math.max(0, Math.min(100, +d.s[i] || 0)) + '%"></i></span>').join("") +
+    '</span><span class="dt">' + (+d.t || 0) + "</span></li>").join("");
+  $("histDays").hidden = !p.played; $("histEmpty").hidden = !!p.played;
+  $("hist").hidden = false; $("histClose").focus();
+}
+$("histBtn").addEventListener("click", openHistory);
+$("histClose").addEventListener("click", () => { $("hist").hidden = true; $("histBtn").focus(); });
+$("hist").addEventListener("click", e => { if (e.target === $("hist")) $("hist").hidden = true; });
+
+// ───────────────────────── Start ─────────────────────────
+function start(carried) {
+  readColours();
+  PICS.thumb.onload = draw; PICS.thumb.src = SAT.thumb;
+  loadPicture("medium", "sat-medium.webp", () => loadPicture("full", "sat-full.webp"));
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  const restyle = () => { readColours(); draw(); };
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
+  new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  startDaily();
+  // If the page was updated while a practice round was open, pick it up where it was.
+  if (carried && carried.mode === "practice" && Array.isArray(carried.ids) && carried.ids.every(i => PLACES[i])) {
+    Object.assign(G, { mode: "practice", ids: carried.ids, results: carried.results || [], guess: null });
+    G.phase = G.results.length >= 5 ? "done" : "guess"; render();
+  }
+}
+const hot = window.claude && window.claude.hot;
+if (hot && hot.snapshot) hot.snapshot(() => ({ mode: G.mode, ids: G.ids, results: G.results }));
+if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+</script>
+</body>
+</html>
